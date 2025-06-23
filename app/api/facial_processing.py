@@ -8,7 +8,7 @@ import base64
 import time
 import uuid
 
-from app.core.image_processor import process_image
+from app.core.image_processor import process_image, async_process_image
 from app.db.postgres import PostgresClient, PerceptualHashCache
 from app.utils.logging import log_request, log_response, log_job_status
 from app.monitoring.prometheus import track_job_status
@@ -158,7 +158,7 @@ async def process_image_task(job_id: str, image_data: str, segmentation_map: Opt
         log_job_status(job_id, "processing", 0.1)
         
         # Process the image
-        result = await process_image(
+        result = await async_process_image(
             image_data, 
             segmentation_map, 
             job_id=job_id,

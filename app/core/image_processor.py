@@ -294,7 +294,7 @@ def process_image(image_base64, landmarks, segmentation_map_base64):
         "mask_contours": facial_regions
     }
 
-async def process_image(image_data, segmentation_map, landmarks, job_id=None, options=None, progress_callback=None):
+async def async_process_image(image_data, segmentation_map, landmarks, job_id=None, options=None, progress_callback=None):
     """
     Async wrapper for image processing to be used in the API.
     
