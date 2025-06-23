@@ -2,44 +2,23 @@
 Facial image processing routes for the API.
 """
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request, Depends
-from pydantic import BaseModel
-from typing import Dict, Any, Optional, List
-import base64
+from typing import Dict, Any, Optional
 import time
 import uuid
 
 from app.core.image_processor import process_image
 from app.db.postgres import PostgresClient, PerceptualHashCache
 from app.utils.logging import log_request, log_response, log_job_status
-from app.monitoring.prometheus import track_job_status
+from app.monitoring.prometheus import track_job_status, track_sync_processing
+from app.schemas.facial_processing import (
+    Landmark, 
+    ImageProcessingRequest, 
+    ProcessingResponse,
+    JobStatusResponse,
+    SynchronousProcessingResponse
+)
 
 router = APIRouter(prefix="/api/v1", tags=["facial-processing"])
-
-class Landmark(BaseModel):
-    x: float
-    y: float
-
-# Define the request model
-class ImageProcessingRequest(BaseModel):
-    image: str  # Base64 encoded image
-    segmentation_map: str # Base64 encoded segmentation map
-    landmarks: List[Landmark]  # Optional landmarks for facial features
-    job_id: Optional[str] = None  # Optional job ID for tracking
-    options: Optional[Dict[str, Any]] = {}  # Processing options
-
-# Define the response models
-class ProcessingResponse(BaseModel):
-    job_id: str
-    status: str
-    message: str
-
-class JobStatusResponse(BaseModel):
-    job_id: str
-    status: str
-    progress: float
-    result: Optional[Dict[str, Any]] = None
-    start_time: Optional[float] = None
-    end_time: Optional[float] = None
 
 # Dependency to get PostgreSQL client
 async def get_postgres_client():

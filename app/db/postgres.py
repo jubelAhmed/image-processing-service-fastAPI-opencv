@@ -2,13 +2,15 @@
 PostgreSQL database client and caching functionality.
 """
 
-import asyncpg
+from typing import Dict, Any, Optional, List
 import json
 import hashlib
-import base64
-from typing import Dict, Any, Optional, List, Tuple
-import numpy as np
+import time
+import asyncpg
 import cv2
+import numpy as np
+import base64
+from app.schemas.facial_processing import Landmark
 
 class PostgresClient:
     """Client for interacting with PostgreSQL database."""
@@ -167,7 +169,7 @@ class PerceptualHashCache:
     def __init__(self, postgres_client: PostgresClient):
         self.postgres = postgres_client
     
-    def get_cached_result(self, image_base64: str, options: Dict[str, Any] = None, landmarks: List[Dict[str, float]] = None, segmentation_map_base64: str = None) -> Optional[Dict[str, Any]]:
+    def get_cached_result(self, image_base64: str, options: Dict[str, Any] = None, landmarks: List[Landmark] = None, segmentation_map_base64: str = None) -> Optional[Dict[str, Any]]:
         """Try to get cached result based on perceptual similarity."""
         # Generate perceptual hash of the image
         p_hash = self._compute_perceptual_hash(image_base64)
@@ -179,14 +181,15 @@ class PerceptualHashCache:
         }
         
         if landmarks:
-            input_data["landmarks"] = landmarks
+            # Convert Landmark objects to dicts for storing in cache
+            input_data["landmarks"] = [{"x": lm.x, "y": lm.y} for lm in landmarks]
             
         if segmentation_map_base64:
             input_data["segmentation_map"] = segmentation_map_base64
         
         return self.postgres.get_cached_result(input_data)
     
-    async def store_result(self, image_base64: str, result: Dict[str, Any], options: Dict[str, Any] = None, landmarks: List[Dict[str, float]] = None, segmentation_map_base64: str = None):
+    async def store_result(self, image_base64: str, result: Dict[str, Any], options: Dict[str, Any] = None, landmarks: List[Landmark] = None, segmentation_map_base64: str = None):
         """Cache result with perceptual hash."""
         p_hash = self._compute_perceptual_hash(image_base64)
         
@@ -196,12 +199,13 @@ class PerceptualHashCache:
         }
         
         if landmarks:
-            input_data["landmarks"] = landmarks
+            # Convert Landmark objects to dicts for storing in cache
+            input_data["landmarks"] = [{"x": lm.x, "y": lm.y} for lm in landmarks]
             
         if segmentation_map_base64:
             input_data["segmentation_map"] = segmentation_map_base64
-        
-        await self.postgres.cache_result(input_data, result)
+            
+        await self.postgres.store_cached_result(input_data, result)
     
     def _compute_perceptual_hash(self, image_base64: str) -> str:
         """Compute perceptual hash of an image using pHash algorithm."""

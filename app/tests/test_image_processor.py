@@ -14,6 +14,7 @@ from app.core.image_processor import (
     rotate_image, 
     generate_svg_mask
 )
+from app.schemas.facial_processing import Landmark
 
 class TestImageProcessor(unittest.TestCase):
     def setUp(self):
@@ -49,11 +50,22 @@ class TestImageProcessor(unittest.TestCase):
     def test_extract_facial_regions(self, mock_optimize):
         """Test facial region extraction."""
         # Set up mock
-        mock_optimize.return_value = {'blur_size': 5, 'threshold': 127}
+        mock_optimize.return_value = [np.array([[[10, 10]], [[20, 10]], [[20, 20]], [[10, 20]]])]
+        
+        # Create test landmarks
+        test_landmarks = [
+            Landmark(x=100, y=100),
+            Landmark(x=150, y=100),
+            Landmark(x=200, y=100),
+            Landmark(x=100, y=150),
+            Landmark(x=150, y=150),
+            Landmark(x=200, y=150)
+        ]
         
         # Run the test
+        img = decode_image(self.test_image_base64)
         seg_map = decode_segmentation_map(self.test_segmap_base64)
-        regions = extract_facial_regions(seg_map)
+        regions = extract_facial_regions(img, seg_map, test_landmarks)
         
         # Check results
         self.assertIsInstance(regions, dict)
