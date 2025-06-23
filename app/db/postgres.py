@@ -1,0 +1,241 @@
+"""
+PostgreSQL database client and caching functionality.
+"""
+
+import asyncpg
+import json
+import hashlib
+import base64
+from typing import Dict, Any, Optional, List, Tuple
+import numpy as np
+import cv2
+
+class PostgresClient:
+    """Client for interacting with PostgreSQL database."""
+    
+    def __init__(self, connection_string: str):
+        self.connection_string = connection_string
+        self.pool = None
+    
+    async def connect(self):
+        """Connect to PostgreSQL and initialize the connection pool."""
+        self.pool = await asyncpg.create_pool(self.connection_string)
+    
+    async def disconnect(self):
+        """Close all connections in the pool."""
+        if self.pool:
+            await self.pool.close()
+    
+    async def create_tables(self):
+        """Create necessary tables if they don't exist."""
+        async with self.pool.acquire() as conn:
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS cache (
+                    id SERIAL PRIMARY KEY,
+                    input_hash VARCHAR(64) UNIQUE,
+                    result JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id VARCHAR(36) PRIMARY KEY,
+                    status VARCHAR(20) NOT NULL,
+                    result JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Create index for faster lookups
+            await conn.execute('''
+                CREATE INDEX IF NOT EXISTS idx_cache_input_hash ON cache (input_hash)
+            ''')
+    
+    async def store_job(self, job_id: str, status: str, result: Optional[Dict[str, Any]] = None):
+        """Store or update a job in the database."""
+        async with self.pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO jobs (id, status, result, created_at, updated_at)
+                VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (id) 
+                DO UPDATE SET 
+                    status = $2,
+                    result = $3,
+                    updated_at = CURRENT_TIMESTAMP
+            ''', job_id, status, json.dumps(result) if result else None)
+    
+    async def store_job_status(self, job_id: str, status: str, progress: float, start_time: Optional[float] = None, end_time: Optional[float] = None, result: Optional[Dict[str, Any]] = None):
+        """Store job status with progress information."""
+        job_data = {
+            "status": status,
+            "progress": progress
+        }
+        
+        if start_time:
+            job_data["start_time"] = start_time
+            
+        if end_time:
+            job_data["end_time"] = end_time
+            
+        if result:
+            job_data["result"] = result
+            
+        async with self.pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO jobs (id, status, result, created_at, updated_at)
+                VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (id) 
+                DO UPDATE SET 
+                    status = $2,
+                    result = $3,
+                    updated_at = CURRENT_TIMESTAMP
+            ''', job_id, status, json.dumps(job_data))
+            
+    async def update_job_status(self, job_id: str, status: str, progress: float, result: Optional[Dict[str, Any]] = None, end_time: Optional[float] = None):
+        """Update an existing job's status and progress."""
+        # Get the current job data
+        job_data = await self.get_job_status(job_id) or {}
+        
+        # Update the status and progress
+        job_data["status"] = status
+        job_data["progress"] = progress
+        
+        if result:
+            job_data["result"] = result
+            
+        if end_time:
+            job_data["end_time"] = end_time
+            
+        # Store the updated job
+        await self.store_job_status(
+            job_id=job_id,
+            status=status,
+            progress=progress,
+            start_time=job_data.get("start_time"),
+            end_time=end_time,
+            result=result
+        )
+    
+    async def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get job status with progress information."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM jobs WHERE id = $1', job_id)
+            if row:
+                job_data = dict(row)
+                if job_data["result"]:
+                    try:
+                        job_data["result"] = json.loads(job_data["result"])
+                    except:
+                        pass
+                return job_data
+            return None
+    
+    async def cache_result(self, input_data: Dict[str, Any], result: Dict[str, Any]):
+        """Cache a processing result."""
+        input_hash = self._generate_input_hash(input_data)
+        
+        async with self.pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO cache (input_hash, result)
+                VALUES ($1, $2)
+                ON CONFLICT (input_hash) 
+                DO UPDATE SET result = $2
+            ''', input_hash, json.dumps(result))
+    
+    def get_cached_result(self, input_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Retrieve a cached result if available."""
+        input_hash = self._generate_input_hash(input_data)
+        
+        with self.pool.acquire() as conn:
+            row = conn.fetchrow('SELECT result FROM cache WHERE input_hash = $1', input_hash)
+            if row and row['result']:
+                return json.loads(row['result'])
+            return None
+    
+    def _generate_input_hash(self, input_data: Dict[str, Any]) -> str:
+        """Generate a hash from input data for cache lookup."""
+        # For images, we can use perceptual hashing to identify similar images
+        # For simplicity, we'll use a regular hash of the serialized input
+        serialized = json.dumps(input_data, sort_keys=True)
+        return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
+
+class PerceptualHashCache:
+    """Cache system using perceptual hashing for images."""
+    
+    def __init__(self, postgres_client: PostgresClient):
+        self.postgres = postgres_client
+    
+    def get_cached_result(self, image_base64: str, options: Dict[str, Any] = None, landmarks: List[Dict[str, float]] = None, segmentation_map_base64: str = None) -> Optional[Dict[str, Any]]:
+        """Try to get cached result based on perceptual similarity."""
+        # Generate perceptual hash of the image
+        p_hash = self._compute_perceptual_hash(image_base64)
+        
+        # Create a simplified input data with the perceptual hash instead of the full image
+        input_data = {
+            "image_hash": p_hash,
+            "options": options or {}
+        }
+        
+        if landmarks:
+            input_data["landmarks"] = landmarks
+            
+        if segmentation_map_base64:
+            input_data["segmentation_map"] = segmentation_map_base64
+        
+        return self.postgres.get_cached_result(input_data)
+    
+    async def store_result(self, image_base64: str, result: Dict[str, Any], options: Dict[str, Any] = None, landmarks: List[Dict[str, float]] = None, segmentation_map_base64: str = None):
+        """Cache result with perceptual hash."""
+        p_hash = self._compute_perceptual_hash(image_base64)
+        
+        input_data = {
+            "image_hash": p_hash,
+            "options": options or {}
+        }
+        
+        if landmarks:
+            input_data["landmarks"] = landmarks
+            
+        if segmentation_map_base64:
+            input_data["segmentation_map"] = segmentation_map_base64
+        
+        await self.postgres.cache_result(input_data, result)
+    
+    def _compute_perceptual_hash(self, image_base64: str) -> str:
+        """Compute perceptual hash of an image using pHash algorithm."""
+        try:
+            # Decode base64 image
+            img_data = base64.b64decode(image_base64)
+            nparr = np.frombuffer(img_data, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
+            
+            # Resize image to 32x32
+            img = cv2.resize(img, (32, 32))
+            
+            # Compute DCT (Discrete Cosine Transform)
+            dct = cv2.dct(np.float32(img))
+            
+            # Keep only the top-left 8x8 portion
+            dct_low = dct[:8, :8]
+            
+            # Compute the median value
+            med = np.median(dct_low)
+            
+            # Generate hash: 1 if pixel value is greater than median, 0 otherwise
+            hash_bits = (dct_low > med).flatten()
+            
+            # Convert to hexadecimal string
+            hash_hex = ""
+            for i in range(0, len(hash_bits), 4):
+                value = 0
+                for j in range(4):
+                    if i + j < len(hash_bits) and hash_bits[i + j]:
+                        value += 1 << j
+                hash_hex += hex(value)[2:]
+            
+            return hash_hex
+        except Exception as e:
+            # If anything goes wrong, return a hash of the raw image data
+            return hashlib.sha256(image_base64.encode('utf-8')).hexdigest()

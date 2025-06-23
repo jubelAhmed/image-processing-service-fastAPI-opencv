@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # API Service
+  api:
+    build: .
+    container_name: facial-api-service
+    ports:
+      - "8000:80"      # API port
+      - "9090:9090"    # Prometheus metrics port
+    volumes:
+      - ./app:/code/app
+      - ./static:/code/static
+    environment:
+      - DB_USE_DATABASE=true  # Set to false to disable database usage
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - DB_DATABASE=facial_api
+      - PROMETHEUS_ENABLED=true
+      - PROMETHEUS_PORT=9090
+      - APP_DEBUG=false
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - facial-api-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health" , "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Database Service
+  postgres:
+    image: postgres:15
+    container_name: facial-api-postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=facial_api
+    restart: unless-stopped
+    networks:
+      - facial-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Monitoring Services
+  prometheus:
+    image: prom/prometheus
+    container_name: facial-api-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+    networks:
+      - facial-api-network
+
+  grafana:
+    image: grafana/grafana
+    container_name: facial-api-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - ./static:/etc/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/facial_api_dashboard.json
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - facial-api-network
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  facial-api-network:
+    driver: bridge
