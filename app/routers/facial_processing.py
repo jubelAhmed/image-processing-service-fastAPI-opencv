@@ -58,7 +58,7 @@ async def get_perceptual_hash_cache(postgres_client: Optional[PostgresClient] = 
     return PerceptualHashCache(postgres_client)
 
 @router.post("/frontal/crop/submit", response_model=ProcessingResponse)
-def process_image_endpoint(
+async def process_image_endpoint(
     request_data: ImageProcessingRequest,
     background_tasks: BackgroundTasks,
     request: Request,
@@ -81,7 +81,7 @@ def process_image_endpoint(
     cache_hit = False
     if perceptual_hash_cache:
         # Check if we have a cached result using perceptual hash
-        cache_result = perceptual_hash_cache.get_cached_result(
+        cache_result = await perceptual_hash_cache.get_cached_result(
             request_data.image, 
             request_data.options
         )
@@ -102,7 +102,7 @@ def process_image_endpoint(
     
     # Store initial job status if database is enabled
     if postgres_client:
-        postgres_client.store_job_status(
+        await postgres_client.store_job_status(
             job_id=job_id,
             status="queued",
             progress=0.0,
@@ -113,18 +113,15 @@ def process_image_endpoint(
     track_job_status(job_id, "queued")
     
     # Add task to background processing
-
-    process_image_task()
-    
-    # background_tasks.add_task(
-    #     process_image_task,
-    #     job_id=job_id,
-    #     image_data=request_data.image,
-    #     segmentation_map=request_data.segmentation_map,
-    #     options=request_data.options,
-    #     postgres_client=postgres_client,
-    #     perceptual_hash_cache=perceptual_hash_cache
-    # )
+    background_tasks.add_task(
+        process_image_task,
+        job_id=job_id,
+        image_data=request_data.image,
+        segmentation_map=request_data.segmentation_map,
+        options=request_data.options,
+        postgres_client=postgres_client,
+        perceptual_hash_cache=perceptual_hash_cache
+    )
     
     # Return response with job ID
     response = {
@@ -172,7 +169,7 @@ async def get_job_status(
     log_response(request, response)
     return response
 
-def process_image_task(
+async def process_image_task(
     job_id: str, 
     image_data: str, 
     segmentation_map: Optional[str], 
@@ -189,7 +186,7 @@ def process_image_task(
     try:
         # Update job status to "processing" if database is enabled
         if postgres_client:
-            postgres_client.update_job_status(
+            await postgres_client.update_job_status(
                 job_id=job_id,
                 status="processing",
                 progress=0.1
@@ -207,7 +204,7 @@ def process_image_task(
             if postgres_client:
                 await postgres_client.update_job_status(job_id, "processing", progress)
         
-        result = process_image(
+        result = await process_image(
             image_data, 
             segmentation_map, 
             job_id=job_id,
@@ -217,7 +214,7 @@ def process_image_task(
         
         # Store the result in the cache if database is enabled
         if perceptual_hash_cache:
-            perceptual_hash_cache.store_result(
+            await perceptual_hash_cache.store_result(
                 image_data, 
                 result, 
                 options
@@ -225,7 +222,7 @@ def process_image_task(
         
         # Update job status to "completed" if database is enabled
         if postgres_client:
-            postgres_client.update_job_status(
+            await postgres_client.update_job_status(
                 job_id=job_id,
                 status="completed",
                 progress=1.0,
@@ -242,7 +239,7 @@ def process_image_task(
     except Exception as e:
         # Update job status to "failed" if database is enabled
         if postgres_client:
-            postgres_client.update_job_status(
+            await postgres_client.update_job_status(
                 job_id=job_id,
                 status="failed",
                 progress=0.0,

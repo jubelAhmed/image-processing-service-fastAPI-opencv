@@ -206,7 +206,6 @@ def adjust_contour_around_nose(contours, nose_points):
                 if 0 <= x < nose_mask.shape[1] and 0 <= y < nose_mask.shape[0]:
                     if nose_mask[y, x] > 0:
                         # Point is in nose area, adjust it (simplified)
-                        # In a real implementation, you'd find the closest point on the nose boundary
                         continue
                 adjusted_points.append(point)
             
@@ -295,13 +294,13 @@ def process_image(image_base64, landmarks, segmentation_map_base64):
         "mask_contours": facial_regions
     }
 
-async def process_image(image_data, segmentation_map=None, job_id=None, options=None, progress_callback=None):
+async def process_image(image_data, segmentation_map, landmarks, job_id=None, options=None, progress_callback=None):
     """
     Async wrapper for image processing to be used in the API.
     
     Args:
         image_data: Base64 encoded image
-        segmentation_map: Base64 encoded segmentation map (optional)
+        segmentation_map: Base64 encoded segmentation map 
         job_id: Job ID for tracking (optional)
         options: Processing options (optional)
         progress_callback: Callback function for progress updates (optional)
@@ -309,9 +308,7 @@ async def process_image(image_data, segmentation_map=None, job_id=None, options=
     Returns:
         Dictionary with processing results
     """
-    # Extract landmarks (in a real app, this would use a face detection model)
-    # For this test task, we're using mock landmarks
-    landmarks = []
+ 
     
     # If progress callback is provided, update progress
     if progress_callback:
