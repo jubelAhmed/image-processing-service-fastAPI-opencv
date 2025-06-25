@@ -3,15 +3,9 @@ Image processing module for facial contour extraction and output generation.
 """
 
 import base64
-import numpy as np
-import cv2
-from io import BytesIO
-import math
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Tuple
-from app.core.performance import optimize_contour_extraction, adaptive_blur, smooth_contour, parallel_process_regions
-from app.schemas.facial_processing import Landmark
+from typing import List, Dict,Tuple
 
 
 class OutputGenerator(ABC):

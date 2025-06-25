@@ -10,7 +10,7 @@ from app.db.postgres import PostgresClient, PerceptualHashCache
 from app.utils.logging import log_request, log_response, log_job_status
 from app.monitoring.prometheus import track_job_status
 from app.schemas.facial_processing import (
-    Landmark, 
+    LandmarkPoint, 
     ImageProcessingRequest, 
     ProcessingResponse,
     JobStatusResponse,
@@ -155,7 +155,7 @@ async def process_image_task(
     job_id: str, 
     image_data: str,
     segmentation_map: str,
-    landmarks: list[Landmark],
+    landmarks: list[LandmarkPoint],
     options: Dict[str, Any],
     postgres_client: Optional[PostgresClient],
     perceptual_hash_cache: Optional[PerceptualHashCache]

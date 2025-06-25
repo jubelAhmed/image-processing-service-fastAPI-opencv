@@ -14,7 +14,7 @@ from app.core.image_processor import (
     rotate_image, 
     generate_svg_mask
 )
-from app.schemas.facial_processing import Landmark
+from app.schemas.facial_processing import LandmarkPoint
 
 class TestImageProcessor(unittest.TestCase):
     def setUp(self):
@@ -54,12 +54,12 @@ class TestImageProcessor(unittest.TestCase):
         
         # Create test landmarks
         test_landmarks = [
-            Landmark(x=100, y=100),
-            Landmark(x=150, y=100),
-            Landmark(x=200, y=100),
-            Landmark(x=100, y=150),
-            Landmark(x=150, y=150),
-            Landmark(x=200, y=150)
+            LandmarkPoint(x=100, y=100),
+            LandmarkPoint(x=150, y=100),
+            LandmarkPoint(x=200, y=100),
+            LandmarkPoint(x=100, y=150),
+            LandmarkPoint(x=150, y=150),
+            LandmarkPoint(x=200, y=150)
         ]
         
         # Run the test

@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from typing import Dict, List, Tuple, Optional
 from app.services.file_processor import FileProcessor
-from app.schemas.facial_processing import Landmark
+from app.schemas.facial_processing import LandmarkPoint
 from app.utils.base64_utils import decode_image, decode_segmentation_map
 
 class FacialSegmentationProcessor:
@@ -15,7 +15,7 @@ class FacialSegmentationProcessor:
     
     # ========== CORE PROCESSING METHODS ==========
 
-    async def process_image(self, image_base64: str, segmentation_map_base64: str, landmarks: List[Landmark]) -> str:
+    async def process_image(self, image_base64: str, segmentation_map_base64: str, landmarks: List[LandmarkPoint]) -> str:
         
         image = decode_image(image_base64)
         segmentation_map = decode_segmentation_map(segmentation_map_base64)
@@ -34,7 +34,7 @@ class FacialSegmentationProcessor:
         
     def process_face_regions(self, original_image: np.ndarray, 
                            segmentation_map: np.ndarray, 
-                           landmarks_list: List[Landmark]) -> np.ndarray:
+                           landmarks_list: List[LandmarkPoint]) -> np.ndarray:
         """
         Main processing method that subdivides face regions and applies overlays.
         

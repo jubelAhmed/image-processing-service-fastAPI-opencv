@@ -13,7 +13,7 @@ from app.schemas.facial_processing import (
     ProcessingResponse,
     JobStatusResponse,
     SynchronousProcessingResponse,
-    Landmark
+    LandmarkPoint
 )
 
 class TestFacialProcessingAPI(unittest.TestCase):

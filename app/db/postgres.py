@@ -10,7 +10,7 @@ import asyncpg
 import cv2
 import numpy as np
 import base64
-from app.schemas.facial_processing import Landmark
+from app.schemas.facial_processing import LandmarkPoint
 
 class PostgresClient:
     """Client for interacting with PostgreSQL database."""
@@ -169,7 +169,7 @@ class PerceptualHashCache:
     def __init__(self, postgres_client: PostgresClient):
         self.postgres = postgres_client
     
-    def get_cached_result(self, image_base64: str, options: Dict[str, Any] = None, landmarks: List[Landmark] = None, segmentation_map_base64: str = None) -> Optional[Dict[str, Any]]:
+    def get_cached_result(self, image_base64: str, options: Dict[str, Any] = None, landmarks: List[LandmarkPoint] = None, segmentation_map_base64: str = None) -> Optional[Dict[str, Any]]:
         """Try to get cached result based on perceptual similarity."""
         # Generate perceptual hash of the image
         p_hash = self._compute_perceptual_hash(image_base64)
@@ -181,7 +181,7 @@ class PerceptualHashCache:
         }
         
         if landmarks:
-            # Convert Landmark objects to dicts for storing in cache
+            # Convert LandmarkPoint objects to dicts for storing in cache
             input_data["landmarks"] = [{"x": lm.x, "y": lm.y} for lm in landmarks]
             
         if segmentation_map_base64:
@@ -189,7 +189,7 @@ class PerceptualHashCache:
         
         return self.postgres.get_cached_result(input_data)
     
-    async def store_result(self, image_base64: str, result: Dict[str, Any], options: Dict[str, Any] = None, landmarks: List[Landmark] = None, segmentation_map_base64: str = None):
+    async def store_result(self, image_base64: str, result: Dict[str, Any], options: Dict[str, Any] = None, landmarks: List[LandmarkPoint] = None, segmentation_map_base64: str = None):
         """Cache result with perceptual hash."""
         p_hash = self._compute_perceptual_hash(image_base64)
         
@@ -199,7 +199,7 @@ class PerceptualHashCache:
         }
         
         if landmarks:
-            # Convert Landmark objects to dicts for storing in cache
+            # Convert LandmarkPoint objects to dicts for storing in cache
             input_data["landmarks"] = [{"x": lm.x, "y": lm.y} for lm in landmarks]
             
         if segmentation_map_base64:
