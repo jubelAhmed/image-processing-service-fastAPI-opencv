@@ -73,7 +73,6 @@ Submits a facial image for processing and returns a job ID.
   "image": "base64_encoded_image",
   "landmarks": [{"x": 0, "y": 0}, ...],
   "segmentation_map": "base64_encoded_segmentation_map",
-  "loadtest_mode": false
 }
 ```
 
@@ -172,16 +171,15 @@ To run the application without database functionality:
 
 ```bash
 # Set the environment variable
-export DB_USE_DATABASE=false
+export DB_USE_DATABASE=false if you don't want to work with database for now
 
 # Run the application
 fastapi dev app/main.py
 ```
 
-Or with Docker Compose:
+Or Run the application with Docker Compose:
 
 ```bash
-# Edit the docker-compose.yml file to set DB_USE_DATABASE=false
 docker-compose up -d
 ```
 
