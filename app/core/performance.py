@@ -79,12 +79,3 @@ def adaptive_blur(mask, kernel_size=5, sigma=0):
         adaptive_kernel += 1
     return cv2.GaussianBlur(mask, (adaptive_kernel, adaptive_kernel), sigma)
 
-# Optional: Cython implementation for critical sections
-# Note: This would require a separate .pyx file and compilation
-try:
-    # Try to import Cython-optimized functions if available
-    from contour_optimized import fast_contour_extraction
-except ImportError:
-    # Fall back to regular Python implementation
-    def fast_contour_extraction(binary_mask):
-        return optimize_contour_extraction(binary_mask)

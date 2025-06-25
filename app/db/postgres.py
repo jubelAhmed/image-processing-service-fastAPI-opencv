@@ -1,5 +1,5 @@
 """
-PostgreSQL database client and caching functionality.
+Simplified PostgreSQL database client without progress tracking.
 """
 
 from typing import Dict, Any, Optional, List
@@ -12,11 +12,6 @@ import numpy as np
 import base64
 from app.schemas.face_schema import LandmarkPoint
 
-"""
-Optimized approach: Store results only in cache table, jobs table just references cache
-"""
-
-# Updated PostgresClient with optimized storage
 class PostgresClient:
     """Client for interacting with PostgreSQL database."""
     
@@ -50,7 +45,7 @@ class PostgresClient:
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS jobs (
                     id VARCHAR(36) PRIMARY KEY,
-                    status VARCHAR(20) NOT NULL,
+                    status VARCHAR(20) NOT NULL CHECK (status IN ('queued', 'processing', 'completed', 'failed')),
                     cache_id INTEGER REFERENCES cache(id),
                     error_message TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -66,8 +61,7 @@ class PostgresClient:
                 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status)
             ''')
     
-    async def store_job_status(self, job_id: str, status: str, 
-                              cache_id: Optional[int] = None, error_message: Optional[str] = None):
+    async def store_job_status(self, job_id: str, status: str, cache_id: Optional[int] = None, error_message: Optional[str] = None):
         """Store job status with optional reference to cache."""
         async with self.pool.acquire() as conn:
             await conn.execute('''
@@ -88,6 +82,7 @@ class PostgresClient:
                 SELECT 
                     j.id,
                     j.status,
+                    j.cache_id,
                     j.error_message,
                     j.created_at,
                     j.updated_at,
@@ -102,7 +97,8 @@ class PostgresClient:
                 if job_data["result"]:
                     try:
                         job_data["result"] = json.loads(job_data["result"])
-                    except:
+                    except Exception as e:
+                        print(f"Error parsing JSON result for job {job_id}: {e}")
                         pass
                 return job_data
             return None
@@ -111,16 +107,28 @@ class PostgresClient:
         """Cache a processing result and return the cache ID."""
         input_hash = self._generate_input_hash(input_data)
         
+        print(f"=== DEBUG: store_cached_result ===")
+        print(f"Input hash: {input_hash}")
+        print(f"Result to store: {json.dumps(result)[:200]}...")
+        
         async with self.pool.acquire() as conn:
-            # Use INSERT ... ON CONFLICT to handle duplicates and return the ID
-            row = await conn.fetchrow('''
-                INSERT INTO cache (input_hash, result)
-                VALUES ($1, $2)
-                ON CONFLICT (input_hash) 
-                DO UPDATE SET result = $2
-                RETURNING id
-            ''', input_hash, json.dumps(result))
-            return row['id']
+            try:
+                row = await conn.fetchrow('''
+                    INSERT INTO cache (input_hash, result)
+                    VALUES ($1, $2)
+                    ON CONFLICT (input_hash) 
+                    DO UPDATE SET result = $2
+                    RETURNING id
+                ''', input_hash, json.dumps(result))
+                
+                cache_id = row['id']
+                print(f"Successfully stored in cache with ID: {cache_id}")
+                return cache_id
+            except Exception as e:
+                print(f"Error storing in cache: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
     
     async def get_cached_result(self, input_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Retrieve a cached result if available."""
@@ -139,5 +147,3 @@ class PostgresClient:
         """Generate a hash from input data for cache lookup."""
         serialized = json.dumps(input_data, sort_keys=True)
         return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
-
-

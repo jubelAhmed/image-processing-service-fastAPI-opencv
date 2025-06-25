@@ -96,12 +96,11 @@ Checks the status of a submitted job.
 
 ```json
 {
-  "id": "job_id",
-  "status": "pending|processing|completed|failed",
-  "result": {
-    "svg": "base64_encoded_svg",
-    "mask_contours": {"1": [...], "2": [...], ...}
-  }
+  // "id": "job_id",
+  // "status": "pending|processing|completed|failed",
+  "svg": "base64_encoded_svg",
+  "mask_contours": {"1": [...], "2": [...], ...}
+  
 }
 ```
 

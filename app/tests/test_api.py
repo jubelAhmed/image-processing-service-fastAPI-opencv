@@ -11,7 +11,6 @@ from app.routers.facial_processing import process_image_task
 from app.schemas.face_schema import (
     ImageProcessingRequest, 
     ProcessingResponse,
-    JobStatusResponse,
     LandmarkPoint
 )
 

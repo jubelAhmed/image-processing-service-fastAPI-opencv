@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch, MagicMock, AsyncMock
 import asyncio
 from app.db.postgres import PostgresClient
-from app.services.cache import PerceptualHashCache
+from app.db.perceptual_caching import PerceptualHashCache
 
 class TestPostgresClient(unittest.TestCase):
     @patch('app.db.postgres.asyncpg.create_pool')

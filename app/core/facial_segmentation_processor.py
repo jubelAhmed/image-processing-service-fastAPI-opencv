@@ -29,7 +29,6 @@ class FacialSegmentationProcessor:
         # Debug logging
         logger.debug(f"Image shape: {image_shape}")
         logger.debug(f"Regions type: {type(contours)}, length: {len(contours)}")
-        logger.debug(f"Regions structure: {[len(r) if r else 0 for r in contours]}")
         
         # Save or display the result
         # cv2.imwrite("result_image_2.png", result_image)
@@ -38,11 +37,7 @@ class FacialSegmentationProcessor:
         processor = ImageGenerator()
 
         # Step 3: Generate the image (Base64-encoded SVG)
-        try:
-            logger.debug("About to call processor.create() with:")
-            logger.debug(f"image_shape: {image_shape} (type: {type(image_shape)})")
-            logger.debug(f" contours: {type(contours)} with {len(contours)} items")
-            
+        try:            
             svg_base64 = processor.create(image_shape, contours, processed_image)
             logger.debug("SVG generation successful")
         except Exception as e:
@@ -52,11 +47,7 @@ class FacialSegmentationProcessor:
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
-     
-        with open("new_output.svg", "wb") as f:
-            import base64
-            f.write(base64.b64decode(svg_base64))
-        
+
         return svg_base64, contours
         
     def process_face_regions(self, original_image: np.ndarray, 
