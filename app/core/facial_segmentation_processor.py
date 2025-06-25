@@ -3,10 +3,10 @@ from app.core.facial_processing.face_alignment_utils import rotate_and_crop_face
 import cv2
 import numpy as np
 from typing import Dict, List, Tuple, Optional
-from app.services.file_processor import FileProcessor
-from app.schemas.facial_processing import LandmarkPoint
+from app.services.image_generator import ImageGenerator
+from app.schemas.face_schema import LandmarkPoint
 from app.utils.base64_utils import decode_image, decode_segmentation_map
-
+from app.utils.logging import logger
 class FacialSegmentationProcessor:
     """Advanced face region subdivider for segmented face images."""
     
@@ -24,17 +24,44 @@ class FacialSegmentationProcessor:
         if not landmarks or len(landmarks) == 0:
             raise ValueError("No face detected in the image")
     
-
-        result_image = self.process_face_regions(image, segmentation_map, landmarks)
+        image_shape, contours, processed_image = self.process_face_regions(image, segmentation_map, landmarks)
+        
+        # Debug logging
+        logger.debug(f"Image shape: {image_shape}")
+        logger.debug(f"Regions type: {type(contours)}, length: {len(contours)}")
+        logger.debug(f"Regions structure: {[len(r) if r else 0 for r in contours]}")
+        
         # Save or display the result
-        cv2.imwrite("result_image.png", result_image)
-        # svgGenerator = SVGGenerator()
-        # svg_string = svgGenerator.generate_svg(original_image.shape, subdivider.get_facial_regions())
-        return result_image
+        # cv2.imwrite("result_image_2.png", result_image)
+        
+        # Step 2: Create a FileProcessor with that generator
+        processor = ImageGenerator()
+
+        # Step 3: Generate the image (Base64-encoded SVG)
+        try:
+            logger.info("About to call processor.create() with:")
+            logger.info(f"image_shape: {image_shape} (type: {type(image_shape)})")
+            logger.info(f" contours: {type(contours)} with {len(contours)} items")
+            
+            svg_base64 = processor.create(image_shape, contours, processed_image)
+            logger.info("SVG generation successful")
+        except Exception as e:
+            logger.error(f"Error in SVG generation: {e}")
+            logger.error(f"Image shape passed: {image_shape}")
+            logger.error(f"Error type: {type(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
+     
+        with open("new_output.svg", "wb") as f:
+            import base64
+            f.write(base64.b64decode(svg_base64))
+        
+        return svg_base64
         
     def process_face_regions(self, original_image: np.ndarray, 
                            segmentation_map: np.ndarray, 
-                           landmarks_list: List[LandmarkPoint]) -> np.ndarray:
+                           landmarks_list: List[LandmarkPoint]) -> Tuple[Tuple[int, int], List, np.ndarray]:
         """
         Main processing method that subdivides face regions and applies overlays.
         
@@ -44,7 +71,10 @@ class FacialSegmentationProcessor:
             landmarks_list: List of facial landmarks with 'x', 'y' coordinates
             
         Returns:
-            Result image with region overlays and numbers
+            Tuple containing:
+            - image_shape: Shape of the cropped image (height, width)
+            - regions: List where each index contains contour points for that region
+            - result_image: Result image with region overlays and numbers
         """
         # Prepare images
         original_image, segmentation_map = self._prepare_images(
@@ -54,11 +84,11 @@ class FacialSegmentationProcessor:
         cropped_image, cropped_seg_map, cropped_landmarks = self._apply_rotation_and_crop(
             original_image, segmentation_map, landmarks_list)
         
-        # Process regions
-        result_image = self._process_subdivided_regions(
+        # Process regions and get both result image and region data
+        result_image, contours = self._process_subdivided_regions(
             cropped_image, cropped_seg_map, landmarks_list)
         
-        return result_image
+        return cropped_image.shape[:2], contours, cropped_image
     
     def _prepare_images(self, original_image: np.ndarray, 
                        segmentation_map: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -356,6 +386,7 @@ class FacialSegmentationProcessor:
         # Find sub-regions
         forehead_mask = self._find_forehead_region(region1_mask, boundaries)
         left_ear_mask, right_ear_mask = self._find_ear_regions(region1_mask, boundaries)
+        # left_under_eye_mask, right_under_eye_mask =  self._find_under_eye_regions(region1_mask, boundaries)
         
         # Create remaining face mask
         main_face_mask = region1_mask.copy()
@@ -378,6 +409,44 @@ class FacialSegmentationProcessor:
         }
         
         return subdivisions, main_face_mask
+    
+    # ========== HELPER METHODS FOR REGION DATA EXTRACTION ==========
+    
+    def _extract_contour_points(self, mask: np.ndarray) -> List[List[int]]:
+        """Extract contour points from mask for SVG generation."""
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return []
+        
+        # Get the largest contour
+        largest_contour = max(contours, key=cv2.contourArea)
+        
+        # Convert contour points to list format
+        points = []
+        for point in largest_contour:
+            x, y = point[0]
+            points.append([int(x), int(y)])
+        
+        return points
+    
+    def _get_region_centroid(self, mask: np.ndarray) -> Optional[List[int]]:
+        """Get centroid of a region mask."""
+        if cv2.countNonZero(mask) == 0:
+            return None
+        
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return None
+        
+        largest_contour = max(contours, key=cv2.contourArea)
+        M = cv2.moments(largest_contour)
+        if M["m00"] == 0:
+            return None
+        
+        cx = int(M["m10"] / M["m00"])
+        cy = int(M["m01"] / M["m00"])
+        
+        return [cx, cy]
     
     # ========== VISUALIZATION METHODS ==========
     
@@ -412,6 +481,40 @@ class FacialSegmentationProcessor:
                 overlay, self.config.overlay_alpha + 0.2, 0)
         
         return result.astype(np.uint8)
+    
+    def draw_u_shaped_eye_mask(self, width: int, height: int, position: str = 'center') -> np.ndarray:
+        """Draw a small U-shaped curve positioned under the eye.
+
+        Args:
+            width (int): Width of the mask.
+            height (int): Height of the mask.
+            position (str): Position of the curve: 'left', 'right', or 'center'.
+
+        Returns:
+            np.ndarray: Mask with U-shaped curve.
+        """
+        mask = np.zeros((height, width), dtype=np.uint8)
+
+        center_y = int(height * 0.5)  # vertical position of the curve
+
+        # Determine center_x based on position
+        if position == 'left':
+            center_x = width // 3
+        elif position == 'right':
+            # center_x = 3 * width // 4
+            center_x = int(width * 0.68)  # shift a bit left from 3/4 (which is 0.75)
+        else:  # 'center' or any other value
+            center_x = width // 2
+
+        axes = (width // 16, height // 20)  # smaller U-curve
+        angle = 0
+        startAngle = 0
+        endAngle = 180
+
+        # Draw the bottom half ellipse (U shape)
+        cv2.ellipse(mask, (center_x, center_y), axes, angle, startAngle, endAngle, 255, -1)
+
+        return mask
     
     def _scale_mask(self, mask: np.ndarray, scale_x: float, scale_y: float,
                    original_w: int, original_h: int) -> np.ndarray:
@@ -504,10 +607,11 @@ class FacialSegmentationProcessor:
     
     def _process_subdivided_regions(self, original_image: np.ndarray, 
                                   segmentation_map: np.ndarray, 
-                                  landmarks_list: List[Dict]) -> np.ndarray:
+                                  landmarks_list: List[Dict]) -> Tuple[np.ndarray, List]:
         """Process all subdivided regions and apply overlays."""
         unique_colors = self._get_unique_colors(segmentation_map)
         result_image = original_image.copy()
+        contours = []
         
         print(f"🎨 Found {len(unique_colors)} unique colors in segmentation map")
         
@@ -520,19 +624,20 @@ class FacialSegmentationProcessor:
         
         if region_1_color is None:
             print("❌ Region 1 (main face) not found")
-            return result_image
+            return result_image, contours
         
         # Process main face subdivisions
         print(f"🔍 Processing Region 1 (main face)")
         region1_mask = self._create_clean_mask(segmentation_map, region_1_color)
         subdivisions, main_face_mask = self._subdivide_main_face_region(region1_mask, landmarks_list)
         
-        # Apply overlays for subdivisions
+        # Apply overlays for subdivisions and extract contour data
         for region_name, mask_obj in subdivisions.items():
             mask = mask_obj['mask']
             region_id = mask_obj['region']
             
             if cv2.countNonZero(mask) < self.config.min_region_area:
+                logger.info(f"Skipping {region_name} (region {region_id}): insufficient area")
                 continue
             
             # Apply overlay
@@ -543,23 +648,47 @@ class FacialSegmentationProcessor:
             offset_x = 150 if region_name == 'chin' else 0
             result_image = self._draw_region_number(
                 result_image, mask, region_id, offset_x=offset_x)
+            
+            # Extract contour points
+            contour_points = self._extract_contour_points(mask)
+            logger.info(f"Extracted {len(contour_points)} points for {region_name} (region {region_id})")
+            
+            if contour_points:
+                # Ensure we have enough slots in the contours list
+                while len(contours) <= region_id:
+                    contours.append([])
+                contours[region_id] = contour_points
+                logger.info(f"Added {region_name} to contours[{region_id}]")
         
         # Process additional regions from segmentation map
-        result_image = self._process_additional_regions(
+        result_image, additional_regions = self._process_additional_regions(
             result_image, segmentation_map, unique_colors, region_1_color)
         
-        return result_image
+        # Merge additional regions
+        for region_id, contour_points in additional_regions:
+            # Ensure we have enough slots in the contours list
+            while len(contours) <= region_id:
+                contours.append([])
+            contours[region_id] = contour_points
+            logger.info(f"Added additional region {region_id} with {len(contour_points)} points")
+        
+        logger.info(f"Final contours list length: {len(contours)}")
+        logger.info(f"Non-empty contours: {[i for i, c in enumerate(contours) if c]}")
+        
+        return result_image, contours
     
     def _process_additional_regions(self, result_image: np.ndarray, 
                                   segmentation_map: np.ndarray,
                                   unique_colors: np.ndarray, 
-                                  region_1_color: np.ndarray) -> None:
+                                  region_1_color: np.ndarray) -> Tuple[np.ndarray, List[Tuple[int, List]]]:
         """Process additional regions beyond the main face."""
         additional_regions = {
             4: {"name": "nose", "region_number": 5, "visible": True},
             5: {"name": "lips", "region_number": 8, "visible": False},
             7: {"name": "inner_mouth", "region_number": 9, "visible": False},
         }
+        
+        regions_data = []
         
         potential_colors = [
             color for color in unique_colors 
@@ -573,6 +702,7 @@ class FacialSegmentationProcessor:
             if area < self.config.min_region_area:
                 continue
             print(f"🔍 Processing additional region {i + 1} with color {color}")
+            
             if i == 4:  # Nose region
                 result_image = self._apply_region_overlay(
                     result_image, region_mask, self.config.default_color)
@@ -581,6 +711,12 @@ class FacialSegmentationProcessor:
                     region_id = additional_regions[i]["region_number"]
                     result_image = self._draw_region_number(
                         result_image, region_mask, region_id)
+                    
+                    # Extract region data for SVG - only contour points
+                    contour_points = self._extract_contour_points(region_mask)
+                    
+                    if contour_points:
+                        regions_data.append((region_id, contour_points))
             
             elif i in [2, 3]:  # Other regions with scaling and shifting
                 result_image = self._apply_region_overlay(
@@ -589,8 +725,23 @@ class FacialSegmentationProcessor:
                 
                 result_image = self._draw_region_number(
                     result_image, region_mask, i, shift_cm=1.2)
+                
+                # Extract region data for SVG (apply same transformations)
+                # Step 1: Get dimensions of the original region_mask
+                h, w = region_mask.shape
+
+                if i == 2:
+                    region_mask = self.draw_u_shaped_eye_mask(w, h, position='left')
+                else:
+                    region_mask = self.draw_u_shaped_eye_mask(w, h, position='right')
+
+                # Step 3: Apply your existing transformations
+                # transformed_mask = self._scale_mask(region_mask, 1.2, 1.0, w, h)
+                # transformed_mask = self._shift_mask(transformed_mask, 1.2, 96)
+                
+                contour_points = self._extract_contour_points(region_mask)
+                
+                if contour_points:
+                    regions_data.append((i, contour_points))
         
-        return result_image
-    
-
-
+        return result_image, regions_data

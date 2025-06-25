@@ -8,11 +8,10 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.routers.facial_processing import process_image_task
-from app.schemas.facial_processing import (
+from app.schemas.face_schema import (
     ImageProcessingRequest, 
     ProcessingResponse,
     JobStatusResponse,
-    SynchronousProcessingResponse,
     LandmarkPoint
 )
 

@@ -14,7 +14,7 @@ from app.core.image_processor import (
     rotate_image, 
     generate_svg_mask
 )
-from app.schemas.facial_processing import LandmarkPoint
+from app.schemas.face_schema import LandmarkPoint
 
 class TestImageProcessor(unittest.TestCase):
     def setUp(self):

@@ -9,12 +9,11 @@ import uuid
 from app.db.postgres import PostgresClient, PerceptualHashCache
 from app.utils.logging import log_request, log_response, log_job_status
 from app.monitoring.prometheus import track_job_status
-from app.schemas.facial_processing import (
+from app.schemas.face_schema import (
     LandmarkPoint, 
-    ImageProcessingRequest, 
+    ImageProcessingRequest,
     ProcessingResponse,
-    JobStatusResponse,
-    SynchronousProcessingResponse
+    JobStatusResponse
 )
 
 
@@ -56,15 +55,14 @@ async def process_image_endpoint(
     log_request(request, request_data)
     
     # Generate a job ID if one is not provided
-    job_id = request_data.job_id or str(uuid.uuid4())
+    job_id = str(uuid.uuid4())
     
     # Check if database is enabled and we can use caching
     cache_hit = False
     if perceptual_hash_cache:
         # Check if we have a cached result using perceptual hash
         cache_result = await perceptual_hash_cache.get_cached_result(
-            request_data.image, 
-            request_data.options
+            request_data.image
         )
         
         if cache_result:
@@ -72,7 +70,6 @@ async def process_image_endpoint(
             response = {
                 "job_id": job_id,
                 "status": "completed",
-                "message": "Result retrieved from cache"
             }
             log_response(request, response)
             
@@ -85,9 +82,7 @@ async def process_image_endpoint(
     if postgres_client:
         await postgres_client.store_job_status(
             job_id=job_id,
-            status="queued",
-            progress=0.0,
-            start_time=time.time()
+            status="queued"
         )
     
     # Update metrics
@@ -100,7 +95,6 @@ async def process_image_endpoint(
         image_data=request_data.image,
         segmentation_map=request_data.segmentation_map,
         landmarks=request_data.landmarks,
-        options=request_data.options,
         postgres_client=postgres_client,
         perceptual_hash_cache=perceptual_hash_cache
     )
@@ -109,7 +103,6 @@ async def process_image_endpoint(
     response = {
         "job_id": job_id,
         "status": "queued",
-        "message": "Image processing job submitted successfully"
     }
     
     log_response(request, response)
@@ -142,10 +135,6 @@ async def get_job_status(
     response = JobStatusResponse(
         job_id=job_id,
         status=job_status["status"],
-        progress=job_status["progress"],
-        result=job_status.get("result"),
-        start_time=job_status.get("start_time"),
-        end_time=job_status.get("end_time")
     )
     
     log_response(request, response)
@@ -156,7 +145,6 @@ async def process_image_task(
     image_data: str,
     segmentation_map: str,
     landmarks: list[LandmarkPoint],
-    options: Dict[str, Any],
     postgres_client: Optional[PostgresClient],
     perceptual_hash_cache: Optional[PerceptualHashCache]
 ):
@@ -200,7 +188,6 @@ async def process_image_task(
             await perceptual_hash_cache.store_result(
                 image_data, 
                 result, 
-                options
             )
         
         # Update job status to "completed" if database is enabled

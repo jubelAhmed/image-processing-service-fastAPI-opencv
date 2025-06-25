@@ -10,7 +10,7 @@ import asyncpg
 import cv2
 import numpy as np
 import base64
-from app.schemas.facial_processing import LandmarkPoint
+from app.schemas.face_schema import LandmarkPoint
 
 class PostgresClient:
     """Client for interacting with PostgreSQL database."""
@@ -169,7 +169,7 @@ class PerceptualHashCache:
     def __init__(self, postgres_client: PostgresClient):
         self.postgres = postgres_client
     
-    def get_cached_result(self, image_base64: str, options: Dict[str, Any] = None, landmarks: List[LandmarkPoint] = None, segmentation_map_base64: str = None) -> Optional[Dict[str, Any]]:
+    def get_cached_result(self, image_base64: str, landmarks: List[LandmarkPoint] = None, segmentation_map_base64: str = None) -> Optional[Dict[str, Any]]:
         """Try to get cached result based on perceptual similarity."""
         # Generate perceptual hash of the image
         p_hash = self._compute_perceptual_hash(image_base64)
@@ -177,7 +177,6 @@ class PerceptualHashCache:
         # Create a simplified input data with the perceptual hash instead of the full image
         input_data = {
             "image_hash": p_hash,
-            "options": options or {}
         }
         
         if landmarks:
@@ -195,7 +194,6 @@ class PerceptualHashCache:
         
         input_data = {
             "image_hash": p_hash,
-            "options": options or {}
         }
         
         if landmarks:

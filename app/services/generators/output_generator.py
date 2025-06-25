@@ -7,14 +7,15 @@ import numpy as np
 import cv2
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 
 class OutputGenerator(ABC):
     """Abstract base class for different output formats."""
     
     @abstractmethod
-    def generate(self, image_shape: Tuple[int, int], facial_regions: Dict[str, List]) -> str:
+    def generate(self, image_shape: Tuple[int, int], regions: List[List[List[int]]], 
+                 processed_image: Optional[np.ndarray] = None) -> str:
         pass
 
 
