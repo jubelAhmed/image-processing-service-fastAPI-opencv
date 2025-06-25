@@ -602,7 +602,7 @@ class FacialSegmentationProcessor:
         result_image = original_image.copy()
         contours_dict = {}  # Change from list to dict
         
-        print(f"🎨 Found {len(unique_colors)} unique colors in segmentation map")
+        logger.debug(f"🎨 Found {len(unique_colors)} unique colors in segmentation map")
         
         # Find main face region (first non-black color)
         region_1_color = None
@@ -612,11 +612,11 @@ class FacialSegmentationProcessor:
                 break
         
         if region_1_color is None:
-            print("❌ Region 1 (main face) not found")
+            logger.debug("❌ Region 1 (main face) not found")
             return result_image, contours_dict
         
         # Process main face subdivisions
-        print(f"🔍 Processing Region 1 (main face)")
+        logger.debug(f"🔍 Processing Region 1 (main face)")
         region1_mask = self._create_clean_mask(segmentation_map, region_1_color)
         subdivisions, main_face_mask = self._subdivide_main_face_region(region1_mask, landmarks_list)
         

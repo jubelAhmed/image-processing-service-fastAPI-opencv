@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 import base64
 from app.schemas.face_schema import LandmarkPoint
+from app.utils.logging import logger
 
 class PostgresClient:
     """Client for interacting with PostgreSQL database."""
@@ -98,7 +99,7 @@ class PostgresClient:
                     try:
                         job_data["result"] = json.loads(job_data["result"])
                     except Exception as e:
-                        print(f"Error parsing JSON result for job {job_id}: {e}")
+                        logger.error(f"Error parsing JSON result for job {job_id}: {e}")
                         pass
                 return job_data
             return None
@@ -106,10 +107,6 @@ class PostgresClient:
     async def store_cached_result(self, input_data: Dict[str, Any], result: Dict[str, Any]) -> int:
         """Cache a processing result and return the cache ID."""
         input_hash = self._generate_input_hash(input_data)
-        
-        print(f"=== DEBUG: store_cached_result ===")
-        print(f"Input hash: {input_hash}")
-        print(f"Result to store: {json.dumps(result)[:200]}...")
         
         async with self.pool.acquire() as conn:
             try:
@@ -122,10 +119,10 @@ class PostgresClient:
                 ''', input_hash, json.dumps(result))
                 
                 cache_id = row['id']
-                print(f"Successfully stored in cache with ID: {cache_id}")
+                logger.debug(f"Successfully stored in cache with ID: {cache_id}")
                 return cache_id
             except Exception as e:
-                print(f"Error storing in cache: {e}")
+                logger.error(f"Error storing in cache: {e}")
                 import traceback
                 traceback.print_exc()
                 raise
