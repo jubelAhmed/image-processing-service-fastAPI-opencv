@@ -248,13 +248,10 @@ async def process_image_task(
             landmarks,
         )
 
-        # Save SVG to file in local for debugging
-        with open("final_output.svg", "wb") as f:
-            import base64
-            f.write(base64.b64decode(svg_base64))
-            
-        print("contours:", contours)
-
+        # # Save SVG to file in local for debugging
+        # with open("final_output.svg", "wb") as f:
+        #     import base64
+        #     f.write(base64.b64decode(svg_base64))
 
         result = {
             "svg": svg_base64,
