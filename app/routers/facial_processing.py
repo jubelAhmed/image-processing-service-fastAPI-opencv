@@ -6,7 +6,6 @@ from typing import Dict, Any, Optional
 import time
 import uuid
 
-from app.core.image_processor import process_image
 from app.db.postgres import PostgresClient, PerceptualHashCache
 from app.utils.logging import log_request, log_response, log_job_status
 from app.monitoring.prometheus import track_job_status, track_sync_processing
@@ -23,7 +22,7 @@ router = APIRouter(prefix="/api/v1", tags=["facial-processing"])
 # Dependency to get PostgreSQL client
 async def get_postgres_client():
     from app.main import app
-    from app.config import config
+    from app.utils.config import config
     
     # Return None if database is disabled
     if not config.db.use_database or not hasattr(app.state, "postgres_client"):
@@ -35,6 +34,7 @@ async def get_perceptual_hash_cache(postgres_client: Optional[PostgresClient] = 
     if postgres_client is None:
         return None
     return PerceptualHashCache(postgres_client)
+
 
 @router.post("/frontal/crop/submit", response_model=ProcessingResponse)
 async def process_image_endpoint(

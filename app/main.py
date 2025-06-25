@@ -12,7 +12,7 @@ from app.monitoring.prometheus import PrometheusMiddleware, setup_prometheus
 from app.utils.logging import log_startup_banner, log_processing_step
 from app.db.postgres import PostgresClient
 from app.routers.facial_processing import router as facial_processing_router
-from app.config import config
+from app.utils.config import config
 
 # Initialize FastAPI app
 app = FastAPI(
