@@ -46,44 +46,69 @@ async def process_image_endpoint(
 ):
     """Process an image to extract facial regions and generate SVG masks."""
     log_request(request, request_data)
+
+    # Validate request data
+    if not request_data.image or not request_data.landmarks or not request_data.segmentation_map:
+        raise HTTPException(
+            status_code=400, 
+            detail="Image, landmarks, and segmentation map are required fields"
+        )
+    
+    # Validate face mesh landmarks
+    if not validate_face_mesh(request_data.landmarks):
+        raise HTTPException(
+            status_code=422,
+            detail="No face detected - invalid or poor quality face mesh landmarks"
+        )
     
     # Check cache first
     if perceptual_hash_cache:
-        cache_result = await perceptual_hash_cache.get_cached_result(
-            request_data.image,
-            request_data.landmarks,
-            request_data.segmentation_map
-        )
-        
-        if cache_result:    
-            # Extract the actual result data from cache
-            cached_data = cache_result.get('result', {})
-            try:
-                svg_data, mask_contours = extract_result_data(cached_data)
-                response = {
-                    "svg": svg_data,
-                    "mask_contours": mask_contours,
-                }
-            except Exception as e:
-                logger.error(f"Error extracting cached result data: {e}")
-                response = {
-                    "status": "error",
-                    "job_id": ""
-                }
+        try:
+            cache_result = await perceptual_hash_cache.get_cached_result(
+                request_data.image,
+                request_data.landmarks,
+                request_data.segmentation_map
+            )
             
-            log_response(request, response)
-            return response
+            if cache_result:    
+                # Extract the actual result data from cache
+                cached_data = cache_result.get('result', {})
+                svg_data, mask_contours = extract_result_data(cached_data)
+                
+                response = ProcessingResponse(
+                    svg=svg_data,
+                    mask_contours=mask_contours,
+                    status="completed"
+                )
+                
+                log_response(request, response.dict())
+                return response
+                
+        except Exception as e:
+            logger.error(f"Cache lookup error: {e}")
+            # Continue to background processing if cache fails
     
+    # Generate job ID and queue for processing
     job_id = str(uuid.uuid4())
-    # No cache hit - queue for processing
-    if postgres_client:
-        await postgres_client.store_job_status(
-            job_id=job_id,
-            status="queued"
-        )
     
+    # Store job status in database
+    if postgres_client:
+        try:
+            await postgres_client.store_job_status(
+                job_id=job_id,
+                status="queued",
+            )
+        except Exception as e:
+            logger.error(f"Database storage error: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to initialize job processing"
+            )
+    
+    # Track job status in memory/cache
     track_job_status(job_id, "queued")
     
+    # Add background task
     background_tasks.add_task(
         process_image_task,
         job_id=job_id,
@@ -94,10 +119,14 @@ async def process_image_endpoint(
         perceptual_hash_cache=perceptual_hash_cache
     )
     
-    response = {"job_id": job_id, "status": "queued"}
-    log_response(request, response)
+    response = JobStatusResponse(
+        job_id=job_id, 
+        status="queued",
+        message="Image processing job queued successfully"
+    )
+    
+    log_response(request, response.dict())
     return response
-
 
 @router.get("/frontal/crop/status/{job_id}")
 async def get_job_status(
@@ -164,6 +193,17 @@ async def get_job_status(
     
     log_response(request, response)
     return response
+
+def validate_face_mesh(landmarks) -> bool:
+    if not isinstance(landmarks, list):
+        return False
+    
+    # Check minimum points for face detection
+    if len(landmarks) < 68:
+        return False
+    
+    return True
+        
 
 def extract_result_data(result_data):
     """Extract SVG and mask contours from the result data."""

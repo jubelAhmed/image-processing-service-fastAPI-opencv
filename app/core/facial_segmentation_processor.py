@@ -26,13 +26,8 @@ class FacialSegmentationProcessor:
     
         image_shape, contours, processed_image = self.process_face_regions(image, segmentation_map, landmarks)
         
-        # Debug logging
-        logger.debug(f"Image shape: {image_shape}")
-        logger.debug(f"Regions type: {type(contours)}, length: {len(contours)}")
-        
         processor = ImageGenerator()
 
-        # Step 3: Generate the image (Base64-encoded SVG)
         try:            
             svg_base64 = processor.create(image_shape, contours, processed_image)
             logger.debug("SVG generation successful")
@@ -44,6 +39,7 @@ class FacialSegmentationProcessor:
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
         
+        # logger.debug("SVG generation completed successfully")
         # with open("main_final_output.svg", "wb") as f:
         #     logger.debug("Saving SVG to main_final_output.svg")
         #     import base64

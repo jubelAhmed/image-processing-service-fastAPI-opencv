@@ -15,10 +15,10 @@ class ImageProcessingRequest(BaseModel):
     landmarks: List[LandmarkPoint] = Field(..., description="Facial landmark points")
     segmentation_map: str = Field(..., description="Base64 encoded segmentation map")
 
-
 class JobStatusResponse(BaseModel):
     job_id: str
     status: str
+
 class ProcessingResponse(BaseModel):
     svg: str | None = None
-    mask_contours: Any | None = None
+    mask_contours: MaskContours | None = None
