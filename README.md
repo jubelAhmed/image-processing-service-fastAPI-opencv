@@ -39,37 +39,6 @@ This FastAPI application processes facial images and generates SVG contour masks
                     └───────────────┘     └───────────────┘
 ```
 
-## Project Structure
-
-```
-/
-├── app/                    # Main application code
-│   ├── main.py             # FastAPI application entry point
-│   ├── config.py           # Application configuration
-│   ├── routers/            # API routers
-│   │   ├── __init__.py
-│   │   └── facial_processing.py
-│   ├── core/               # Core business logic
-│   │   ├── image_processor.py  # Image processing functionality
-│   │   └── performance.py      # Performance optimization
-│   ├── db/                 # Database interactions
-│   │   └── postgres.py     # PostgreSQL client and caching
-│   ├── monitoring/         # Monitoring functionality
-│   │   └── prometheus.py   # Prometheus metrics
-│   ├── utils/              # Utility functions
-│   │   └── logging.py      # Logging utilities
-│   └── tests/              # Unit and integration tests
-│       ├── test_api.py
-│       ├── test_image_processor.py
-│       └── test_postgres.py
-│   │   └── test_postgres.py
-│   └── utils/              # Utility functions
-│       └── logging.py      # Rich logging setup
-├── docker-compose.yml      # Docker Compose configuration
-├── Dockerfile              # Docker container configuration
-├── prometheus.yml          # Prometheus configuration
-└── requirements.txt        # Python dependencies
-```
 
 ## Getting Started
 
