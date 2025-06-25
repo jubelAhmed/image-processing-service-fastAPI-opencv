@@ -47,6 +47,11 @@ class FacialSegmentationProcessor:
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
+        
+        with open("main_final_output.svg", "wb") as f:
+            logger.debug("Saving SVG to main_final_output.svg")
+            import base64
+            f.write(base64.b64decode(svg_base64))
 
         return svg_base64, contours
         
@@ -76,10 +81,10 @@ class FacialSegmentationProcessor:
             original_image, segmentation_map, landmarks_list)
         
         # Process regions and get both result image and region data
-        contours = self._process_subdivided_regions(
+        contours_dict = self._process_subdivided_regions(
             cropped_image, cropped_seg_map, landmarks_list)
         
-        return cropped_image.shape[:2], contours, cropped_image
+        return cropped_image.shape[:2], contours_dict, cropped_image
     
     def _prepare_images(self, original_image: np.ndarray, 
                        segmentation_map: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -597,12 +602,12 @@ class FacialSegmentationProcessor:
     
     
     def _process_subdivided_regions(self, original_image: np.ndarray, 
-                                  segmentation_map: np.ndarray, 
-                                  landmarks_list: List[Dict]) -> Tuple[np.ndarray, List]:
+                              segmentation_map: np.ndarray, 
+                              landmarks_list: List[Dict]) -> Tuple[np.ndarray, Dict]:
         """Process all subdivided regions and apply overlays."""
         unique_colors = self._get_unique_colors(segmentation_map)
         result_image = original_image.copy()
-        contours = []
+        contours_dict = {}  # Change from list to dict
         
         print(f"🎨 Found {len(unique_colors)} unique colors in segmentation map")
         
@@ -615,7 +620,7 @@ class FacialSegmentationProcessor:
         
         if region_1_color is None:
             print("❌ Region 1 (main face) not found")
-            return result_image, contours
+            return result_image, contours_dict
         
         # Process main face subdivisions
         print(f"🔍 Processing Region 1 (main face)")
@@ -645,11 +650,8 @@ class FacialSegmentationProcessor:
             logger.debug(f"Extracted {len(contour_points)} points for {region_name} (region {region_id})")
             
             if contour_points:
-                # Ensure we have enough slots in the contours list
-                while len(contours) <= region_id:
-                    contours.append([])
-                contours[region_id] = contour_points
-                logger.debug(f"Added {region_name} to contours[{region_id}]")
+                contours_dict[region_id] = contour_points  # Store in dict with region_id as key
+                # logger.debug(f"Added {region_name} to contours_dict[{region_id}]")
         
         # Process additional regions from segmentation map
         result_image, additional_regions = self._process_additional_regions(
@@ -657,16 +659,12 @@ class FacialSegmentationProcessor:
         
         # Merge additional regions
         for region_id, contour_points in additional_regions:
-            # Ensure we have enough slots in the contours list
-            while len(contours) <= region_id:
-                contours.append([])
-            contours[region_id] = contour_points
+            contours_dict[region_id] = contour_points  # Store in dict
             # logger.debug(f"Added additional region {region_id} with {len(contour_points)} points")
         
-        # logger.debug(f"Final contours list length: {len(contours)}")
-        # logger.debug(f"Non-empty contours: {[i for i, c in enumerate(contours) if c]}")
+        # logger.debug(f"Final contours dict keys: {list(contours_dict.keys())}")
         
-        return contours
+        return contours_dict
     
     def _process_additional_regions(self, result_image: np.ndarray, 
                                   segmentation_map: np.ndarray,

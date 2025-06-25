@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Tuple, Optional
 import xml.etree.ElementTree as ET
 from app.services.generators.output_generator import OutputGenerator
-
+from app.schemas.face_schema import MaskContours
 class SVGGenerator(OutputGenerator):
     """SVG output generator for contours with optional background image."""
 
@@ -20,14 +20,14 @@ class SVGGenerator(OutputGenerator):
             7: {"stroke": "#A16AA9", "fill": "rgba(161, 106, 169, 0.5)"}
         }
 
-    def generate(self, image_shape: Tuple[int, int], regions: List[List[List[int]]], 
+    def generate(self, image_shape: Tuple[int, int], contours: MaskContours, 
                  processed_image: Optional[np.ndarray] = None) -> str:
         """
-        Generate SVG from image shape and regions list.
+        Generate SVG from image shape and contours list.
         
         Args:
             image_shape: Tuple of (height, width)
-            regions: List where each index contains contour points [[x1,y1], [x2,y2], ...]
+            contours: List where each index contains contour points [[x1,y1], [x2,y2], ...]
                     for that region ID
             processed_image: Optional numpy array of the processed image to use as background
         
@@ -40,7 +40,7 @@ class SVGGenerator(OutputGenerator):
         if processed_image is not None:
             self._add_background_image(svg_root, processed_image, image_shape)
         
-        self._add_regions_to_svg(svg_root, regions)
+        self._add_regions_to_svg(svg_root, contours)
         return self._encode_svg(svg_root)
 
     def _create_svg_root(self, image_shape: Tuple[int, int]) -> ET.Element:
@@ -69,23 +69,9 @@ class SVGGenerator(OutputGenerator):
             "class": "background-image"
         })
 
-    # def _add_regions_to_svg(self, svg_root: ET.Element, regions: List[List[List[int]]]) -> None:
-    #     """Add all regions with contour data to the SVG."""
-    #     for region_id, contour in enumerate(regions):
-    #         # Skip empty regions
-    #         if not contour or len(contour) == 0:
-    #             continue
-            
-    #         # Skip regions with insufficient points
-    #         if len(contour) < 3:
-    #             continue
-                
-    #         path_data = self._create_path_data(contour)
-    #         if path_data:
-    #             self._create_path_element(svg_root, path_data, region_id)
-    def _add_regions_to_svg(self, svg_root: ET.Element, regions: List[List[List[int]]]) -> None:
-        """Add all regions with contour data and their labels to the SVG."""
-        for region_id, contour in enumerate(regions):
+    def _add_regions_to_svg(self, svg_root: ET.Element, contours: MaskContours) -> None:
+        """Add all contours with contour data and their labels to the SVG."""
+        for region_id, contour in contours.items():
             if not contour or len(contour) < 3:
                 continue
 
@@ -96,8 +82,9 @@ class SVGGenerator(OutputGenerator):
                 # Draw region number at the centroid
                 cx, cy = self._compute_centroid(contour)
                 if region_id == 4:
-                    cx += 160  # shift right 180 px, tweak as needed
-                    cy += 0 # shift down 0 px, tweak as needed
+                    cx += 160  # shift right 160 px, tweak as needed
+                    cy += 0    # shift down 0 px, tweak as needed
+
                 ET.SubElement(svg_root, "text", {
                     "x": str(cx),
                     "y": str(cy),

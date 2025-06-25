@@ -2,7 +2,7 @@
 Facial image processing routes for the API.
 """
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request, Depends
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 import time
 import uuid
 
@@ -13,7 +13,8 @@ from app.monitoring.prometheus import track_job_status
 from app.schemas.face_schema import (
     LandmarkPoint, 
     ImageProcessingRequest,
-    ProcessingResponse)
+    ProcessingResponse, JobStatusResponse)
+
 from app.utils.logging import logger
 
 router = APIRouter(prefix="/api/v1", tags=["facial-processing"])
@@ -35,7 +36,7 @@ async def get_perceptual_hash_cache(postgres_client: Optional[PostgresClient] = 
     return PerceptualHashCache(postgres_client)
 
 
-@router.post("/frontal/crop/submit", response_model=ProcessingResponse)
+@router.post("/frontal/crop/submit", response_model=Union[ProcessingResponse, JobStatusResponse])
 async def process_image_endpoint(
     request_data: ImageProcessingRequest,
     background_tasks: BackgroundTasks,
@@ -54,9 +55,7 @@ async def process_image_endpoint(
             request_data.segmentation_map
         )
         
-        if cache_result:
-            # print(f"Cache result: {cache_result}")
-            
+        if cache_result:    
             # Extract the actual result data from cache
             cached_data = cache_result.get('result', {})
             try:
@@ -64,15 +63,12 @@ async def process_image_endpoint(
                 response = {
                     "svg": svg_data,
                     "mask_contours": mask_contours,
-                    "status": "completed",
-                    "job_id": ""
                 }
             except Exception as e:
-                logger.error(f"Error extracting result data for job {job_id}: {e}")
-                # Fallback response
+                logger.error(f"Error extracting cached result data: {e}")
                 response = {
-                    "status": "completed",
-                    "error": f"Result data extraction failed: {str(e)}",
+                    "status": "error",
+                    "job_id": ""
                 }
             
             log_response(request, response)
@@ -169,55 +165,23 @@ async def get_job_status(
     log_response(request, response)
     return response
 
+def extract_result_data(result_data):
+    """Extract SVG and mask contours from the result data."""
+    with open("test.txt", "w") as f:
+        f.write("Extracting result data...\n")
+        f.write(f"Result data: {result_data}\n")
+   
+    svg_data = result_data.get("svg", "")
+    mask_contours = result_data.get("mask_contours", {})
+    
+    if not svg_data:
+        raise ValueError("SVG data is missing in the result")
+    
+    if not isinstance(mask_contours, dict):
+        raise ValueError("Mask contours must be a dictionary")
+    
+    return svg_data, mask_contours
 
-def extract_result_data(result_data) -> tuple[str, dict]:
-    """
-    Extract SVG and mask contours from various result data formats.
-    Returns: (svg_string, mask_contours_dict)
-    """
-    if result_data is None:
-        return "", {}
-    
-    if isinstance(result_data, dict):
-        # Standard expected format
-        svg = result_data.get("svg", "")
-        mask_contours = result_data.get("mask_contours", {})
-        
-        # Handle nested result structure
-        if not svg and not mask_contours and "result" in result_data:
-            return extract_result_data(result_data["result"])
-            
-        return svg, mask_contours
-    
-    elif isinstance(result_data, list):
-        svg = ""
-        mask_contours = {}
-        
-        # Try to find svg and mask_contours in the list items
-        for i, item in enumerate(result_data):
-            if isinstance(item, dict):
-                if "svg" in item and not svg:
-                    svg = item["svg"]
-                if "mask_contours" in item and not mask_contours:
-                    mask_contours = item["mask_contours"]
-                elif "contours" in item and not mask_contours:
-                    mask_contours = item["contours"]
-            elif isinstance(item, str):
-                # Check if it looks like SVG data
-                if ("<svg" in item.lower() or "data:image/svg" in item.lower()) and not svg:
-                    svg = item
-        
-        return svg, mask_contours
-    
-    elif isinstance(result_data, str):
-        # If it's a string, assume it's SVG data
-        return result_data, {}
-    
-    else:
-        logger.info(f"Unexpected result data type: {type(result_data)}")
-        # Try to convert to string as fallback
-        return "", {}
-    
 async def process_image_task(
     job_id: str, 
     image_data: str,
@@ -247,11 +211,6 @@ async def process_image_task(
             segmentation_map, 
             landmarks,
         )
-
-        # # Save SVG to file in local for debugging
-        # with open("final_output.svg", "wb") as f:
-        #     import base64
-        #     f.write(base64.b64decode(svg_base64))
 
         result = {
             "svg": svg_base64,
