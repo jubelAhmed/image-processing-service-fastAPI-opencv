@@ -91,7 +91,6 @@ class TestFacialProcessingAPI(unittest.TestCase):
         mock_db_func.return_value = mock_db
         mock_db.get_job_status.return_value = {
             "status": "completed",
-            "progress": 1.0,
             "result": {"svg": "<svg></svg>"},
             "start_time": 1655123456.789,
             "end_time": 1655123457.123
@@ -105,7 +104,6 @@ class TestFacialProcessingAPI(unittest.TestCase):
         data = response.json()
         self.assertEqual(data["job_id"], "test-job-id")
         self.assertEqual(data["status"], "completed")
-        self.assertEqual(data["progress"], 1.0)
     
     @patch('app.routers.facial_processing.get_postgres_client')
     def test_get_job_status_not_found(self, mock_db_func):

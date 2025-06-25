@@ -5,7 +5,6 @@ Rich logging configuration and utility functions.
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 from rich.panel import Panel
 from rich.text import Text
 from rich.traceback import install
@@ -58,7 +57,7 @@ def log_response(request, response_data):
     color = "green" if status_code < 400 else "red"
     logger.info(f"Response: [bold]{method.upper()}[/bold] {endpoint} → [bold {color}]{status_code}[/bold {color}]")
 
-def log_job_status(job_id, status, progress=None, error=None):
+def log_job_status(job_id, status, error=None):
     """Log a job status update."""
     color_map = {
         "queued": "yellow",
@@ -68,9 +67,8 @@ def log_job_status(job_id, status, progress=None, error=None):
         "failed": "red"
     }
     color = color_map.get(status, "white")
-    progress_str = f" ({progress*100:.1f}%)" if progress is not None else ""
     error_str = f" - Error: {error}" if error else ""
-    logger.info(f"Job [bold]{job_id}[/bold]: [bold {color}]{status}{progress_str}[/bold {color}]{error_str}")
+    logger.info(f"Job [bold]{job_id}[/bold]: [bold {color}]{status}[/bold {color}]{error_str}")
 
 def log_processing_step(step_name, success=True):
     """Log a processing step."""
@@ -83,15 +81,6 @@ def log_error(error_message, exception=None):
     if exception:
         logger.exception(exception)
 
-def get_progress_bar():
-    """Create and return a Rich progress bar."""
-    return Progress(
-        SpinnerColumn(),
-        TextColumn("[bold blue]{task.description}[/bold blue]"),
-        BarColumn(),
-        TextColumn("[bold]{task.percentage:>3.0f}%[/bold]"),
-        TimeElapsedColumn()
-    )
 
 def log_job_table(jobs):
     """Display a table of jobs."""

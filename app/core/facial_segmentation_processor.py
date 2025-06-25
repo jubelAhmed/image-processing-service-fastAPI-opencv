@@ -39,12 +39,12 @@ class FacialSegmentationProcessor:
 
         # Step 3: Generate the image (Base64-encoded SVG)
         try:
-            logger.info("About to call processor.create() with:")
-            logger.info(f"image_shape: {image_shape} (type: {type(image_shape)})")
-            logger.info(f" contours: {type(contours)} with {len(contours)} items")
+            logger.debug("About to call processor.create() with:")
+            logger.debug(f"image_shape: {image_shape} (type: {type(image_shape)})")
+            logger.debug(f" contours: {type(contours)} with {len(contours)} items")
             
             svg_base64 = processor.create(image_shape, contours, processed_image)
-            logger.info("SVG generation successful")
+            logger.debug("SVG generation successful")
         except Exception as e:
             logger.error(f"Error in SVG generation: {e}")
             logger.error(f"Image shape passed: {image_shape}")
@@ -637,7 +637,7 @@ class FacialSegmentationProcessor:
             region_id = mask_obj['region']
             
             if cv2.countNonZero(mask) < self.config.min_region_area:
-                logger.info(f"Skipping {region_name} (region {region_id}): insufficient area")
+                logger.debug(f"Skipping {region_name} (region {region_id}): insufficient area")
                 continue
             
             # Apply overlay
@@ -651,14 +651,14 @@ class FacialSegmentationProcessor:
             
             # Extract contour points
             contour_points = self._extract_contour_points(mask)
-            logger.info(f"Extracted {len(contour_points)} points for {region_name} (region {region_id})")
+            logger.debug(f"Extracted {len(contour_points)} points for {region_name} (region {region_id})")
             
             if contour_points:
                 # Ensure we have enough slots in the contours list
                 while len(contours) <= region_id:
                     contours.append([])
                 contours[region_id] = contour_points
-                logger.info(f"Added {region_name} to contours[{region_id}]")
+                logger.debug(f"Added {region_name} to contours[{region_id}]")
         
         # Process additional regions from segmentation map
         result_image, additional_regions = self._process_additional_regions(
@@ -670,10 +670,10 @@ class FacialSegmentationProcessor:
             while len(contours) <= region_id:
                 contours.append([])
             contours[region_id] = contour_points
-            logger.info(f"Added additional region {region_id} with {len(contour_points)} points")
+            # logger.debug(f"Added additional region {region_id} with {len(contour_points)} points")
         
-        logger.info(f"Final contours list length: {len(contours)}")
-        logger.info(f"Non-empty contours: {[i for i, c in enumerate(contours) if c]}")
+        # logger.debug(f"Final contours list length: {len(contours)}")
+        # logger.debug(f"Non-empty contours: {[i for i, c in enumerate(contours) if c]}")
         
         return contours
     

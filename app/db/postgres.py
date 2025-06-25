@@ -12,6 +12,11 @@ import numpy as np
 import base64
 from app.schemas.face_schema import LandmarkPoint
 
+"""
+Optimized approach: Store results only in cache table, jobs table just references cache
+"""
+
+# Updated PostgresClient with optimized storage
 class PostgresClient:
     """Client for interacting with PostgreSQL database."""
     
@@ -31,6 +36,7 @@ class PostgresClient:
     async def create_tables(self):
         """Create necessary tables if they don't exist."""
         async with self.pool.acquire() as conn:
+            # Cache table stores the actual results
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS cache (
                     id SERIAL PRIMARY KEY,
@@ -40,90 +46,57 @@ class PostgresClient:
                 )
             ''')
             
+            # Jobs table only stores status and references cache
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS jobs (
                     id VARCHAR(36) PRIMARY KEY,
                     status VARCHAR(20) NOT NULL,
-                    result JSONB,
+                    cache_id INTEGER REFERENCES cache(id),
+                    error_message TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             
-            # Create index for faster lookups
+            # Create indexes for faster lookups
             await conn.execute('''
                 CREATE INDEX IF NOT EXISTS idx_cache_input_hash ON cache (input_hash)
             ''')
+            await conn.execute('''
+                CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status)
+            ''')
     
-    async def store_job(self, job_id: str, status: str, result: Optional[Dict[str, Any]] = None):
-        """Store or update a job in the database."""
+    async def store_job_status(self, job_id: str, status: str, 
+                              cache_id: Optional[int] = None, error_message: Optional[str] = None):
+        """Store job status with optional reference to cache."""
         async with self.pool.acquire() as conn:
             await conn.execute('''
-                INSERT INTO jobs (id, status, result, created_at, updated_at)
-                VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO jobs (id, status, cache_id, error_message, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT (id) 
                 DO UPDATE SET 
                     status = $2,
-                    result = $3,
+                    cache_id = $3,
+                    error_message = $4,
                     updated_at = CURRENT_TIMESTAMP
-            ''', job_id, status, json.dumps(result) if result else None)
+            ''', job_id, status, cache_id, error_message)
     
-    async def store_job_status(self, job_id: str, status: str, progress: float, start_time: Optional[float] = None, end_time: Optional[float] = None, result: Optional[Dict[str, Any]] = None):
-        """Store job status with progress information."""
-        job_data = {
-            "status": status,
-            "progress": progress
-        }
-        
-        if start_time:
-            job_data["start_time"] = start_time
-            
-        if end_time:
-            job_data["end_time"] = end_time
-            
-        if result:
-            job_data["result"] = result
-            
+    async def get_job_with_result(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get job status and result (if available) by joining with cache table."""
         async with self.pool.acquire() as conn:
-            await conn.execute('''
-                INSERT INTO jobs (id, status, result, created_at, updated_at)
-                VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                ON CONFLICT (id) 
-                DO UPDATE SET 
-                    status = $2,
-                    result = $3,
-                    updated_at = CURRENT_TIMESTAMP
-            ''', job_id, status, json.dumps(job_data))
+            row = await conn.fetchrow('''
+                SELECT 
+                    j.id,
+                    j.status,
+                    j.error_message,
+                    j.created_at,
+                    j.updated_at,
+                    c.result
+                FROM jobs j
+                LEFT JOIN cache c ON j.cache_id = c.id
+                WHERE j.id = $1
+            ''', job_id)
             
-    async def update_job_status(self, job_id: str, status: str, progress: float, result: Optional[Dict[str, Any]] = None, end_time: Optional[float] = None):
-        """Update an existing job's status and progress."""
-        # Get the current job data
-        job_data = await self.get_job_status(job_id) or {}
-        
-        # Update the status and progress
-        job_data["status"] = status
-        job_data["progress"] = progress
-        
-        if result:
-            job_data["result"] = result
-            
-        if end_time:
-            job_data["end_time"] = end_time
-            
-        # Store the updated job
-        await self.store_job_status(
-            job_id=job_id,
-            status=status,
-            progress=progress,
-            start_time=job_data.get("start_time"),
-            end_time=end_time,
-            result=result
-        )
-    
-    async def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Get job status with progress information."""
-        async with self.pool.acquire() as conn:
-            row = await conn.fetchrow('SELECT * FROM jobs WHERE id = $1', job_id)
             if row:
                 job_data = dict(row)
                 if job_data["result"]:
@@ -134,32 +107,36 @@ class PostgresClient:
                 return job_data
             return None
     
-    async def store_cached_result(self, input_data: Dict[str, Any], result: Dict[str, Any]):
-        """Cache a processing result."""
+    async def store_cached_result(self, input_data: Dict[str, Any], result: Dict[str, Any]) -> int:
+        """Cache a processing result and return the cache ID."""
         input_hash = self._generate_input_hash(input_data)
         
         async with self.pool.acquire() as conn:
-            await conn.execute('''
+            # Use INSERT ... ON CONFLICT to handle duplicates and return the ID
+            row = await conn.fetchrow('''
                 INSERT INTO cache (input_hash, result)
                 VALUES ($1, $2)
                 ON CONFLICT (input_hash) 
                 DO UPDATE SET result = $2
+                RETURNING id
             ''', input_hash, json.dumps(result))
+            return row['id']
     
-    def get_cached_result(self, input_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def get_cached_result(self, input_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Retrieve a cached result if available."""
         input_hash = self._generate_input_hash(input_data)
         
-        with self.pool.acquire() as conn:
-            row = conn.fetchrow('SELECT result FROM cache WHERE input_hash = $1', input_hash)
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT id, result FROM cache WHERE input_hash = $1', input_hash)
             if row and row['result']:
-                return json.loads(row['result'])
+                return {
+                    'cache_id': row['id'],
+                    'result': json.loads(row['result'])
+                }
             return None
     
     def _generate_input_hash(self, input_data: Dict[str, Any]) -> str:
         """Generate a hash from input data for cache lookup."""
-        # For images, we can use perceptual hashing to identify similar images
-        # For simplicity, we'll use a regular hash of the serialized input
         serialized = json.dumps(input_data, sort_keys=True)
         return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
 

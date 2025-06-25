@@ -46,50 +46,40 @@ async def process_image_endpoint(
     postgres_client: Optional[PostgresClient] = Depends(get_postgres_client),
     perceptual_hash_cache: Optional[PerceptualHashCache] = Depends(get_perceptual_hash_cache)
 ):
-    """
-    Process an image to extract facial regions and generate SVG masks.
-    
-    This endpoint accepts a base64 encoded image and optional segmentation map.
-    Processing happens asynchronously, and the client receives a job ID to track progress.
-    """
-    # Log the incoming request
+    """Process an image to extract facial regions and generate SVG masks."""
     log_request(request, request_data)
-    
-    # Generate a job ID if one is not provided
     job_id = str(uuid.uuid4())
     
-    # Check if database is enabled and we can use caching
-    cache_hit = False
+    # Check cache first
     if perceptual_hash_cache:
-        # Check if we have a cached result using perceptual hash
         cache_result = await perceptual_hash_cache.get_cached_result(
-            request_data.image
+            request_data.image,
+            request_data.landmarks,
+            request_data.segmentation_map
         )
         
         if cache_result:
-            # Return the cached result
-            response = {
-                "job_id": job_id,
-                "status": "completed",
-            }
+            # Store job with reference to existing cache entry
+            if postgres_client:
+                await postgres_client.store_job_status(
+                    job_id=job_id,
+                    status="completed",
+                    cache_id=cache_result['cache_id']  # Reference existing cache
+                )
+            
+            response = {"job_id": job_id, "status": "completed"}
             log_response(request, response)
-            
-            # Update metrics
             track_job_status(job_id, "completed", cache_hit=True)
-            
             return response
     
-    # Store initial job status if database is enabled
+    # No cache hit - queue for processing
     if postgres_client:
         await postgres_client.store_job_status(
             job_id=job_id,
-            status="queued"
-        )
+            status="queued",        )
     
-    # Update metrics
     track_job_status(job_id, "queued")
     
-    # Add task to background processing
     background_tasks.add_task(
         process_image_task,
         job_id=job_id,
@@ -100,43 +90,41 @@ async def process_image_endpoint(
         perceptual_hash_cache=perceptual_hash_cache
     )
     
-    # Return response with job ID
-    response = {
-        "job_id": job_id,
-        "status": "queued",
-    }
-    
+    response = {"job_id": job_id, "status": "queued"}
     log_response(request, response)
     return response
 
-@router.get("/frontal/crop/status/{job_id}", response_model=ProcessingResponse)
+@router.get("/frontal/crop/status/{job_id}")
 async def get_job_status(
     job_id: str, 
     request: Request,
     postgres_client: Optional[PostgresClient] = Depends(get_postgres_client)
 ):
-    """
-    Get the status of a processing job.
-    
-    This endpoint retrieves the current status, progress, and result (if available)
-    for a specified job ID.
-    """
+    """Get the status of a processing job."""
     log_request(request, {"job_id": job_id})
     
-    # Check if database is enabled
     if not postgres_client:
         raise HTTPException(status_code=503, detail="Database functionality is disabled")
     
-    # Get job status from the database
-    job_status = await postgres_client.get_job_status(job_id)
+    # Get job status with result from joined query
+    job_data = await postgres_client.get_job_with_result(job_id)
     
-    if not job_status:
+    if not job_data:
         raise HTTPException(status_code=404, detail=f"Job with ID {job_id} not found")
     
-    response = JobStatusResponse(
-        job_id=job_id,
-        status=job_status["status"],
-    )
+    if job_data["status"] == "completed":
+        result = job_data.get("result", {})
+        response = {
+            "svg": result.get("svg", ""),
+            "mask_contours": result.get("mask_contours", {})
+        }
+    elif job_data["status"] == "failed":
+        response = {
+            "status": "failed",
+            "error": job_data.get("error_message", "Processing failed")
+        }
+    else:
+        response = {"status": "pending"}
     
     log_response(request, response)
     return response
@@ -149,77 +137,56 @@ async def process_image_task(
     postgres_client: Optional[PostgresClient],
     perceptual_hash_cache: Optional[PerceptualHashCache]
 ):
-    """
-    Background task for processing an image.
-    
-    This function is called by the background tasks worker and updates the job status
-    in the database as processing progresses.
-    """
+    """Background task for processing an image."""
     from app.core.facial_segmentation_processor import FacialSegmentationProcessor
     facial_processor = FacialSegmentationProcessor()
+    
     try:
-        # Update job status to "processing" if database is enabled
+        # Update to processing
         if postgres_client:
-            await postgres_client.update_job_status(
+            await postgres_client.store_job_status(
                 job_id=job_id,
-                status="processing",
-                progress=0.1
-            )
+                status="processing"            )
         
-        # Update metrics
         track_job_status(job_id, "processing")
-        
-        # Log job status update
         log_job_status(job_id, "processing", 0.1)
-        
-        # Process the image
-        # Define a progress callback that checks if postgres_client exists
-        async def progress_callback(progress):
-            if postgres_client:
-                await postgres_client.update_job_status(job_id, "processing", progress)
+    
+    
         
         result = await facial_processor.process_image(
             image_data, 
             segmentation_map, 
-            landmarks
+            landmarks,
         )
         
-        # Store the result in the cache if database is enabled
+        # Store result in cache and get cache ID
+        cache_id = None
         if perceptual_hash_cache:
-            await perceptual_hash_cache.store_result(
+            cache_id = await perceptual_hash_cache.store_result(
                 image_data, 
-                result, 
+                result,
+                landmarks,
+                segmentation_map
             )
         
-        # Update job status to "completed" if database is enabled
+        # Update job status with reference to cache
         if postgres_client:
-            await postgres_client.update_job_status(
+            await postgres_client.store_job_status(
                 job_id=job_id,
                 status="completed",
-                progress=1.0,
-                result=result,
-                end_time=time.time()
+                cache_id=cache_id  # Reference the cache entry
             )
         
-        # Update metrics
         track_job_status(job_id, "completed")
-        
-        # Log job completion
         log_job_status(job_id, "completed", 1.0)
         
     except Exception as e:
-        # Update job status to "failed" if database is enabled
         if postgres_client:
-            await postgres_client.update_job_status(
+            await postgres_client.store_job_status(
                 job_id=job_id,
                 status="failed",
-                progress=0.0,
-                result={"error": str(e)},
-                end_time=time.time()
+                error_message=str(e)
             )
         
-        # Update metrics
         track_job_status(job_id, "failed")
-        
-        # Log error
         log_job_status(job_id, "failed", 0.0, error=str(e))

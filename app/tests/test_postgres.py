@@ -70,7 +70,6 @@ class TestPostgresClient(unittest.TestCase):
         mock_conn.fetchrow.return_value = {
             "job_id": "test-job-1",
             "status": "completed",
-            "progress": 1.0,
             "result": '{"key": "value"}'
         }
         mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
