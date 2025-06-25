@@ -4,8 +4,8 @@ Test file for the PostgreSQL database module.
 import unittest
 from unittest.mock import patch, MagicMock, AsyncMock
 import asyncio
-
-from app.db.postgres import PostgresClient, PerceptualHashCache
+from app.db.postgres import PostgresClient
+from app.services.cache import PerceptualHashCache
 
 class TestPostgresClient(unittest.TestCase):
     @patch('app.db.postgres.asyncpg.create_pool')
@@ -95,7 +95,7 @@ class TestPerceptualHashCache(unittest.TestCase):
         self.assertEqual(cache.pg_client, mock_pg_client)
     
     @patch('app.db.postgres.PostgresClient')
-    @patch('app.db.postgres.PerceptualHashCache._compute_phash')
+    @patch('app.services.cache.PerceptualHashCache._compute_phash')
     async def test_get_cached_result(self, mock_compute_phash, mock_pg_client):
         """Test getting cached result."""
         # Setup mocks
@@ -118,7 +118,7 @@ class TestPerceptualHashCache(unittest.TestCase):
         self.assertEqual(result["svg"], "test-svg")
     
     @patch('app.db.postgres.PostgresClient')
-    @patch('app.db.postgres.PerceptualHashCache._compute_phash')
+    @patch('app.services.cache.PerceptualHashCache._compute_phash')
     async def test_store_result(self, mock_compute_phash, mock_pg_client):
         """Test storing result in cache."""
         # Setup mocks

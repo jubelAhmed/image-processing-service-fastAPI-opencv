@@ -6,7 +6,8 @@ from typing import Dict, Any, Optional
 import time
 import uuid
 
-from app.db.postgres import PostgresClient, PerceptualHashCache
+from app.db.postgres import PostgresClient
+from app.services.cache import PerceptualHashCache
 from app.utils.logging import log_request, log_response, log_job_status
 from app.monitoring.prometheus import track_job_status
 from app.schemas.face_schema import (
@@ -108,7 +109,7 @@ async def process_image_endpoint(
     log_response(request, response)
     return response
 
-@router.get("/frontal/crop/status/{job_id}", response_model=JobStatusResponse)
+@router.get("/frontal/crop/status/{job_id}", response_model=ProcessingResponse)
 async def get_job_status(
     job_id: str, 
     request: Request,

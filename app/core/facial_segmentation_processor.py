@@ -57,7 +57,7 @@ class FacialSegmentationProcessor:
             import base64
             f.write(base64.b64decode(svg_base64))
         
-        return svg_base64
+        return svg_base64, contours
         
     def process_face_regions(self, original_image: np.ndarray, 
                            segmentation_map: np.ndarray, 
@@ -85,7 +85,7 @@ class FacialSegmentationProcessor:
             original_image, segmentation_map, landmarks_list)
         
         # Process regions and get both result image and region data
-        result_image, contours = self._process_subdivided_regions(
+        contours = self._process_subdivided_regions(
             cropped_image, cropped_seg_map, landmarks_list)
         
         return cropped_image.shape[:2], contours, cropped_image
@@ -675,7 +675,7 @@ class FacialSegmentationProcessor:
         logger.info(f"Final contours list length: {len(contours)}")
         logger.info(f"Non-empty contours: {[i for i, c in enumerate(contours) if c]}")
         
-        return result_image, contours
+        return contours
     
     def _process_additional_regions(self, result_image: np.ndarray, 
                                   segmentation_map: np.ndarray,
