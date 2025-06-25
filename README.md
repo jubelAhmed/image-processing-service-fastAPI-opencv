@@ -139,20 +139,9 @@ A Grafana dashboard is available at `http://localhost:3000`. Default credentials
 
 3. Run the application:
    ```bash
-   uvicorn app:app --reload
+   fastapi dev app/main.py
    ```
 
-## Performance Testing
-
-To run in loadtest mode (without the 20-second simulated delay):
-
-```json
-{
-  "image": "base64_encoded_image",
-  "landmarks": [{"x": 0, "y": 0}, ...],
-  "segmentation_map": "base64_encoded_segmentation_map",
-  "loadtest_mode": true
-}
 ```
 
 ## Configuration
@@ -186,7 +175,7 @@ To run the application without database functionality:
 export DB_USE_DATABASE=false
 
 # Run the application
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+fastapi dev app/main.py
 ```
 
 Or with Docker Compose:
