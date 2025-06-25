@@ -30,10 +30,6 @@ class FacialSegmentationProcessor:
         logger.debug(f"Image shape: {image_shape}")
         logger.debug(f"Regions type: {type(contours)}, length: {len(contours)}")
         
-        # Save or display the result
-        # cv2.imwrite("result_image_2.png", result_image)
-        
-        # Step 2: Create a FileProcessor with that generator
         processor = ImageGenerator()
 
         # Step 3: Generate the image (Base64-encoded SVG)
@@ -48,16 +44,17 @@ class FacialSegmentationProcessor:
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
         
-        with open("main_final_output.svg", "wb") as f:
-            logger.debug("Saving SVG to main_final_output.svg")
-            import base64
-            f.write(base64.b64decode(svg_base64))
+        # with open("main_final_output.svg", "wb") as f:
+        #     logger.debug("Saving SVG to main_final_output.svg")
+        #     import base64
+        #     f.write(base64.b64decode(svg_base64))
 
         return svg_base64, contours
         
     def process_face_regions(self, original_image: np.ndarray, 
                            segmentation_map: np.ndarray, 
-                           landmarks_list: List[LandmarkPoint]) -> Tuple[Tuple[int, int], List, np.ndarray]:
+                           landmarks_list: List[LandmarkPoint]) -> Tuple[Tuple[int, int], any
+                                                                         , np.ndarray]:
         """
         Main processing method that subdivides face regions and applies overlays.
         
@@ -687,10 +684,8 @@ class FacialSegmentationProcessor:
         for i, color in enumerate(potential_colors):
             region_mask = self._create_clean_mask(segmentation_map, color)
             area = cv2.countNonZero(region_mask)
-            print("Analyzing additional region", i + 1, "with area:", area)
             if area < self.config.min_region_area:
                 continue
-            print(f"🔍 Processing additional region {i + 1} with color {color}")
             
             if i == 4:  # Nose region
                 result_image = self._apply_region_overlay(
