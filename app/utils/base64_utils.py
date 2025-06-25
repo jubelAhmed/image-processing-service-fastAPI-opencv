@@ -13,5 +13,9 @@ def decode_segmentation_map(base64_string):
     """Decode a base64 segmentation map to numpy array."""
     img_data = base64.b64decode(base64_string)
     nparr = np.frombuffer(img_data, np.uint8)
-    segmap = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
+    # Try to decode as color first, then fallback to grayscale
+    segmap = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if segmap is None:
+        # Fallback to grayscale
+        segmap = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
     return segmap

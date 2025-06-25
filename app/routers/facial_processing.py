@@ -8,7 +8,7 @@ import uuid
 
 from app.db.postgres import PostgresClient, PerceptualHashCache
 from app.utils.logging import log_request, log_response, log_job_status
-from app.monitoring.prometheus import track_job_status, track_sync_processing
+from app.monitoring.prometheus import track_job_status
 from app.schemas.facial_processing import (
     Landmark, 
     ImageProcessingRequest, 
@@ -17,12 +17,13 @@ from app.schemas.facial_processing import (
     SynchronousProcessingResponse
 )
 
+
 router = APIRouter(prefix="/api/v1", tags=["facial-processing"])
 
 # Dependency to get PostgreSQL client
 async def get_postgres_client():
     from app.main import app
-    from app.utils.config import config
+    from app.config import config
     
     # Return None if database is disabled
     if not config.db.use_database or not hasattr(app.state, "postgres_client"):
@@ -34,6 +35,7 @@ async def get_perceptual_hash_cache(postgres_client: Optional[PostgresClient] = 
     if postgres_client is None:
         return None
     return PerceptualHashCache(postgres_client)
+
 
 
 @router.post("/frontal/crop/submit", response_model=ProcessingResponse)
@@ -97,6 +99,7 @@ async def process_image_endpoint(
         job_id=job_id,
         image_data=request_data.image,
         segmentation_map=request_data.segmentation_map,
+        landmarks=request_data.landmarks,
         options=request_data.options,
         postgres_client=postgres_client,
         perceptual_hash_cache=perceptual_hash_cache
@@ -150,8 +153,9 @@ async def get_job_status(
 
 async def process_image_task(
     job_id: str, 
-    image_data: str, 
-    segmentation_map: Optional[str], 
+    image_data: str,
+    segmentation_map: str,
+    landmarks: list[Landmark],
     options: Dict[str, Any],
     postgres_client: Optional[PostgresClient],
     perceptual_hash_cache: Optional[PerceptualHashCache]
@@ -162,6 +166,8 @@ async def process_image_task(
     This function is called by the background tasks worker and updates the job status
     in the database as processing progresses.
     """
+    from app.core.facial_segmentation_processor import FacialSegmentationProcessor
+    facial_processor = FacialSegmentationProcessor()
     try:
         # Update job status to "processing" if database is enabled
         if postgres_client:
@@ -183,12 +189,10 @@ async def process_image_task(
             if postgres_client:
                 await postgres_client.update_job_status(job_id, "processing", progress)
         
-        result = await process_image(
+        result = await facial_processor.process_image(
             image_data, 
             segmentation_map, 
-            job_id=job_id,
-            options=options,
-            progress_callback=progress_callback
+            landmarks
         )
         
         # Store the result in the cache if database is enabled

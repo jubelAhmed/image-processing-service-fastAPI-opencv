@@ -1,20 +1,40 @@
-from app.services.image_processing.face_segmentation_config import SegmentationConfig
-from app.services.image_processing.face_alignment_utils import rotate_and_crop_face
+from app.core.facial_processing.face_segmentation_config import SegmentationConfig
+from app.core.facial_processing.face_alignment_utils import rotate_and_crop_face
 import cv2
 import numpy as np
 from typing import Dict, List, Tuple, Optional
+from app.services.file_processor import FileProcessor
+from app.schemas.facial_processing import Landmark
+from app.utils.base64_utils import decode_image, decode_segmentation_map
 
-class FaceRegionSubdivider:
+class FacialSegmentationProcessor:
     """Advanced face region subdivider for segmented face images."""
     
     def __init__(self, config: SegmentationConfig = None):
         self.config = config or SegmentationConfig()
     
     # ========== CORE PROCESSING METHODS ==========
+
+    async def process_image(self, image_base64: str, segmentation_map_base64: str, landmarks: List[Landmark]) -> str:
+        
+        image = decode_image(image_base64)
+        segmentation_map = decode_segmentation_map(segmentation_map_base64)
+        
+        # Check if a face is detected
+        if not landmarks or len(landmarks) == 0:
+            raise ValueError("No face detected in the image")
     
+
+        result_image = self.process_face_regions(image, segmentation_map, landmarks)
+        # Save or display the result
+        cv2.imwrite("result_image.png", result_image)
+        # svgGenerator = SVGGenerator()
+        # svg_string = svgGenerator.generate_svg(original_image.shape, subdivider.get_facial_regions())
+        return result_image
+        
     def process_face_regions(self, original_image: np.ndarray, 
                            segmentation_map: np.ndarray, 
-                           landmarks_list: List[Dict]) -> np.ndarray:
+                           landmarks_list: List[Landmark]) -> np.ndarray:
         """
         Main processing method that subdivides face regions and applies overlays.
         
@@ -60,7 +80,7 @@ class FaceRegionSubdivider:
         
         # Convert landmarks to numpy array
         landmarks_np = np.array([
-            [pt['x'], pt['y']] for pt in landmarks_list
+            [pt.x, pt.y] for pt in landmarks_list
         ], dtype=np.float32)
         
         # Apply rotation and cropping
@@ -149,7 +169,7 @@ class FaceRegionSubdivider:
         # Add landmark-based boundaries
         if landmarks_list:
             landmarks_array = np.array([
-                [pt['x'], pt['y']] for pt in landmarks_list
+                [pt.x, pt.y] for pt in landmarks_list
             ], dtype=np.float32)
             
             if len(landmarks_array) >= 48:  # Ensure we have eye landmarks
@@ -481,7 +501,6 @@ class FaceRegionSubdivider:
         
         return image
     
-    # ========== MAIN PROCESSING PIPELINE ==========
     
     def _process_subdivided_regions(self, original_image: np.ndarray, 
                                   segmentation_map: np.ndarray, 
@@ -572,22 +591,6 @@ class FaceRegionSubdivider:
                     result_image, region_mask, i, shift_cm=1.2)
         
         return result_image
+    
 
-# if __name__ == "__main__":
-#     # Example usage
-#     config = SegmentationConfig()
-#     subdivider = FaceRegionSubdivider(config)
-    
-#     # Load an example image and segmentation map
-#     original_image = cv2.imread("original_image.png")
-#     segmentation_map = cv2.imread("segmentation_map.png")
-    
-#     # Example landmarks (replace with actual landmarks)
-#     from landmarks_data import landmarks_list  # Assuming landmarks_list is defined elsewhere
-    
-#     result_image = subdivider.process_face_regions(original_image, segmentation_map, landmarks_list)
-    
-#     # Save or display the result
-#     cv2.imwrite("result_image.png", result_image)
-#     svgGenerator = SVGGenerator()
-#     svg_string = svgGenerator.generate_svg(original_image.shape, subdivider.get_facial_regions())
+

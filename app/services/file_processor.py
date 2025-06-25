@@ -1,10 +1,9 @@
 """
-Main image processor and generator factory.
+Image generator factory.
 """
 
 from typing import Tuple, List, Dict
-from generators import OutputGenerator, SVGGenerator
-
+from app.services.generators.output_generator import OutputGenerator
 
 class FileProcessor:
     """Main processor for image extraction and output generation."""
@@ -28,24 +27,3 @@ class FileProcessor:
         if not isinstance(regions, dict):
             return False
         return True
-
-
-class GeneratorFactory:
-    """Factory for creating output generators."""
-
-    @staticmethod
-    def create_svg_generator() -> SVGGenerator:
-        return SVGGenerator()
-
-
-    @staticmethod
-    def create_processor(generator_type: str = 'svg') -> FileProcessor:
-        generators = {
-            'svg': GeneratorFactory.create_svg_generator(),
-        }
-
-        generator = generators.get(generator_type.lower())
-        if not generator:
-            raise ValueError(f"Unknown generator type: {generator_type}")
-        
-        return FileProcessor(generator)
