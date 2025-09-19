@@ -4,13 +4,13 @@ Image generator factory with improved dependency injection and error handling.
 
 from typing import Tuple, List, Dict, Optional
 import numpy as np
-from src.services.generators.output_generator import OutputGenerator
-from src.services.generators.svg_generator import SVGGenerator
-from src.services.generators.png_generator import PNGGenerator
-from src.services.generators.json_generator import JSONGenerator
-from src.services.style_config import StyleConfig, DefaultStyleConfig
-from src.schemas.face_schema import MaskContours
-from src.exceptions import InvalidInputError, ProcessingError
+from generators.output_generator import OutputGenerator
+from generators.svg_generator import SVGGenerator
+from generators.png_generator import PNGGenerator
+from generators.json_generator import JSONGenerator
+from style_config import StyleConfig, DefaultStyleConfig
+from face_schema import MaskContours
+from exceptions import InvalidInputError, ProcessingError
 
 class ImageGenerator:
     """Main processor for image extraction and output generation with improved OOP practices."""
