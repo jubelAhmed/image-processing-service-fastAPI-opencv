@@ -1,0 +1,11 @@
+# Include base requirements
+-r base.txt
+
+# Production server
+gunicorn==21.2.0
+
+# Production monitoring
+sentry-sdk==1.40.0
+
+# Production security
+cryptography==42.0.0

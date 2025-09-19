@@ -9,8 +9,8 @@ services:
       - "8000:80"      # API port
       - "9090:9090"    # Prometheus metrics port
     volumes:
-      - ./app:/code/app
-      - ./static:/code/static
+      - ./src:/code/src
+      - ./templates:/code/templates
     environment:
       - DB_USE_DATABASE=true  # Set to false to disable database usage
       - DB_HOST=postgres
@@ -79,7 +79,7 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./docker/grafana/provisioning:/etc/grafana/provisioning
-      - ./static:/etc/grafana/dashboards
+      - ./templates:/etc/grafana/dashboards
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_SECURITY_ADMIN_USER=admin

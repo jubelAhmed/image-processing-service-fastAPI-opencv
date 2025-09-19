@@ -1,24 +1,25 @@
 # Facial Contour Masking API
 
-This FastAPI application processes facial images and generates SVG contour masks for specific facial regions.
+A modern, enterprise-grade FastAPI application for processing facial images and generating SVG contour masks for specific facial regions.
 
-## Features
+## 🚀 Features
 
-- Accepts facial images with landmarks and segmentation map
-- Processes the image to identify facial regions
-- Returns an SVG with contour masks for facial regions
-- Handles autorotation and cropping of faces
-
-### Advanced Features
-
+### Core Functionality
+- **Facial Image Processing**: Accepts facial images with landmarks and segmentation maps
+- **SVG Generation**: Returns SVG contour masks for specific facial regions
+- **Face Alignment**: Handles autorotation and cropping of faces
 - **Asynchronous Processing**: Uses background tasks for non-blocking API calls
-- **Prometheus Monitoring**: Tracks API requests, processing time, and job status
-- **Rich Console Logs**: Beautiful and informative terminal output
-- **Performance Optimization**: Parallel processing and optimized algorithms
-- **PostgreSQL Caching**: Stores and retrieves results for similar requests using perceptual hashing
-- **Configurable Database Usage**: Can run with or without database connection
 
-## Architecture
+### Enterprise Features
+- **🔐 JWT Authentication**: Secure user authentication with access/refresh tokens
+- **🛡️ Security Middleware**: CORS, security headers, and request logging
+- **⚡ Rate Limiting**: Redis-backed rate limiting with `slowapi`
+- **📊 Monitoring**: Prometheus metrics and Grafana dashboards
+- **🗄️ Database Management**: SQLAlchemy ORM with Alembic migrations
+- **💾 Perceptual Caching**: Smart caching using image similarity hashing
+- **🎨 Rich Logging**: Beautiful console output with structured logging
+
+## 🏗️ Architecture
 
 ```
 ┌─────────────┐     ┌───────────────┐     ┌───────────────┐
@@ -39,158 +40,293 @@ This FastAPI application processes facial images and generates SVG contour masks
                     └───────────────┘     └───────────────┘
 ```
 
+## 📁 Project Structure
 
-## Getting Started
+```
+opnecv_image_processing/
+├── .venv/                    # uv virtual environment
+├── src/                      # Source code
+│   ├── auth/                 # Authentication module
+│   │   ├── router.py         # Auth endpoints
+│   │   ├── models.py         # User & token models
+│   │   ├── schemas.py        # Pydantic schemas
+│   │   ├── service.py        # Business logic
+│   │   ├── dependencies.py   # FastAPI dependencies
+│   │   └── security.py       # JWT & password handling
+│   ├── facial/               # Facial processing module
+│   │   ├── router.py         # Processing endpoints
+│   │   ├── models.py         # Processing models
+│   │   ├── schemas.py        # Request/response schemas
+│   │   ├── service.py        # Processing logic
+│   │   ├── image_generator.py # Image generation
+│   │   ├── generators/       # Output generators (SVG, PNG, JSON)
+│   │   └── facial_processing/ # Core processing
+│   ├── core/                 # Global utilities
+│   │   ├── config.py         # Configuration
+│   │   ├── database.py       # Database connection
+│   │   ├── models.py         # Base models
+│   │   └── utils.py          # Utilities
+│   ├── middleware/           # Custom middleware
+│   │   ├── rate_limiting.py  # Rate limiting
+│   │   └── security.py       # Security headers
+│   ├── monitoring/           # Monitoring setup
+│   │   └── prometheus.py     # Prometheus metrics
+│   └── main.py              # Application entry point
+├── requirements/             # Dependencies
+│   ├── base.txt             # Core dependencies
+│   ├── dev.txt              # Development tools
+│   └── prod.txt             # Production dependencies
+├── alembic/                 # Database migrations
+├── docker/                  # Docker configurations
+└── templates/               # Static files & dashboards
+```
+
+## 🚀 Quick Start
 
 ### Prerequisites
-
-- Docker and Docker Compose
+- Python 3.12+
+- [uv](https://github.com/astral-sh/uv) (recommended) or pip
+- Docker & Docker Compose (optional)
 
 ### Installation
 
-1. Clone this repository
-2. Navigate to the project directory
-3. Run the application using Docker Compose:
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd opnecv_image_processing
+   ```
 
+2. **Set up virtual environment with uv**
+   ```bash
+   # Install uv if not already installed
+   pip install uv
+   
+   # Create virtual environment
+   uv venv
+   
+   # Activate virtual environment
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+
+3. **Install dependencies**
+   ```bash
+   uv pip install -r requirements/base.txt
+   ```
+
+4. **Run the application**
+   ```bash
+   # Development mode (without database)
+   DB_USE_DATABASE=false fastapi run src.main:app --reload
+   
+   # Or with uvicorn
+   DB_USE_DATABASE=false uvicorn src.main:app --reload
+   ```
+
+5. **Access the application**
+   - API: http://localhost:8000
+   - Documentation: http://localhost:8000/docs
+   - Prometheus: http://localhost:9090
+
+## 🐳 Docker Deployment
+
+### Using Docker Compose
 ```bash
+# Start all services
 docker-compose up --build
+
+# Run in background
+docker-compose up -d
 ```
 
-The API will be available at `http://localhost:8000`.
-Prometheus metrics are available at `http://localhost:9090`.
-Grafana dashboard is available at `http://localhost:3000`.
+### Services
+- **API**: http://localhost:8000
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3000 (admin/admin)
 
-## API Endpoints
+## 🔧 Configuration
 
-### POST /api/v1/frontal/crop/submit
+### Environment Variables
 
-Submits a facial image for processing and returns a job ID.
+#### Application Settings
+- `APP_NAME`: Application name (default: "Facial Contour Masking API")
+- `APP_VERSION`: Application version (default: "1.0.0")
+- `APP_DEBUG`: Enable debug mode (default: false)
 
-#### Request Payload
+#### Database Settings
+- `DB_USE_DATABASE`: Enable/disable database (default: true)
+- `DATABASE_URL`: Database connection string
+  - PostgreSQL: `postgresql://user:pass@host:port/db`
+  - SQLite: `sqlite:///./facial_api.db`
 
+#### Authentication Settings
+- `AUTH_SECRET_KEY`: JWT secret key (change in production!)
+- `AUTH_ACCESS_TOKEN_EXPIRE_MINUTES`: Access token expiration (default: 30)
+- `AUTH_REFRESH_TOKEN_EXPIRE_DAYS`: Refresh token expiration (default: 7)
+
+#### Rate Limiting Settings
+- `REDIS_URL`: Redis connection string (default: redis://localhost:6379)
+
+#### Monitoring Settings
+- `PROMETHEUS_ENABLED`: Enable Prometheus metrics (default: true)
+- `PROMETHEUS_PORT`: Prometheus port (default: 9090)
+
+## 📚 API Documentation
+
+### Authentication Endpoints
+
+#### POST /api/v1/auth/register
+Register a new user
+```json
+{
+  "username": "user@example.com",
+  "password": "secure_password",
+  "full_name": "John Doe"
+}
+```
+
+#### POST /api/v1/auth/login
+Login and get tokens
+```json
+{
+  "username": "user@example.com",
+  "password": "secure_password"
+}
+```
+
+### Processing Endpoints
+
+#### POST /api/v1/frontal/crop/submit
+Submit facial image for processing
 ```json
 {
   "image": "base64_encoded_image",
   "landmarks": [{"x": 0, "y": 0}, ...],
-  "segmentation_map": "base64_encoded_segmentation_map",
+  "segmentation_map": "base64_encoded_segmentation_map"
 }
 ```
 
-Set `loadtest_mode` to `true` to bypass the simulated processing delay.
-
-#### Response
-
+#### GET /api/v1/frontal/crop/status/{job_id}
+Check processing status
 ```json
 {
-  "id": "job_id",
-  "status": "pending"
+  "job_id": "uuid",
+  "status": "completed",
+  "result": "base64_encoded_svg"
 }
 ```
 
-### GET /api/v1/frontal/crop/status/{job_id}
+## 🗄️ Database Management
 
-Checks the status of a submitted job.
+### Using Alembic Migrations
+```bash
+# Create a new migration
+alembic revision --autogenerate -m "Description"
 
-#### Response
+# Apply migrations
+alembic upgrade head
 
-```json
-{
-  // "id": "job_id",
-  // "status": "pending|processing|completed|failed",
-  "svg": "base64_encoded_svg",
-  "mask_contours": {"1": [...], "2": [...], ...}
-  
-}
+# Rollback migration
+alembic downgrade -1
 ```
 
-## Monitoring and Observability
+### Database Models
+- **Users**: User authentication and profiles
+- **RefreshTokens**: JWT refresh token management
+- **Cache**: Perceptual hash caching
+- **Jobs**: Processing job status
+- **ProcessingMetrics**: Performance metrics
+
+## 🛠️ Development
+
+### Adding Dependencies
+```bash
+# Using uv (recommended)
+uv pip install package-name
+
+# Add to requirements
+uv pip freeze > requirements/base.txt
+```
+
+### Code Quality
+```bash
+# Install development dependencies
+uv pip install -r requirements/dev.txt
+
+# Run tests (when implemented)
+pytest
+
+# Format code
+black src/
+isort src/
+```
+
+### Running Tests
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src
+```
+
+## 🔒 Security Features
+
+- **JWT Authentication**: Secure token-based authentication
+- **Password Hashing**: Bcrypt password hashing
+- **Rate Limiting**: Redis-backed rate limiting
+- **CORS Protection**: Configurable CORS policies
+- **Security Headers**: XSS, CSRF, and content type protection
+- **Request Logging**: Comprehensive request/response logging
+
+## 📊 Monitoring & Observability
 
 ### Prometheus Metrics
-
-The application exposes Prometheus metrics at `http://localhost:9090`. These include:
-
-- API request counts
-- Request latency
+- API request counts and latency
 - Image processing time
-- Job status counts
+- Job status distribution
+- Authentication events
+- Rate limiting violations
 
-### Grafana Dashboard
+### Grafana Dashboards
+- Real-time API performance
+- Error rates and response times
+- User activity and authentication
+- System resource usage
 
-A Grafana dashboard is available at `http://localhost:3000`. Default credentials are:
+## 🚀 Production Deployment
 
-- Username: admin
-- Password: admin
+### Environment Setup
+1. Set production environment variables
+2. Use PostgreSQL for database
+3. Configure Redis for rate limiting
+4. Set up proper logging
+5. Configure monitoring
 
-## Development
+### Performance Optimization
+- Database connection pooling
+- Redis caching
+- Async processing
+- Prometheus monitoring
+- Rate limiting protection
 
-### Local Development
+## 🤝 Contributing
 
-1. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+## 📄 License
 
-3. Run the application:
-   ```bash
-   fastapi dev app/main.py
-   ```
+This project is licensed under the MIT License.
 
-```
+## 🆘 Support
 
-## Configuration
+For support and questions:
+- Create an issue in the repository
+- Check the API documentation at `/docs`
+- Review the monitoring dashboards
 
-The application can be configured using environment variables:
+---
 
-### Application Settings
-- `APP_NAME`: Name of the application (default: "Facial Contour Masking API")
-- `APP_NAME`: Name of the application (default: "Facial Contour Masking API")
-- `APP_VERSION`: Application version (default: "1.0.0")
-- `APP_DEBUG`: Enable debug mode (default: false)
-
-### Database Settings
-- `DB_USE_DATABASE`: Enable/disable database usage (default: true)
-- `DB_HOST`: PostgreSQL host (default: "postgres")
-- `DB_PORT`: PostgreSQL port (default: 5432)
-- `DB_USERNAME`: PostgreSQL username (default: "postgres")
-- `DB_PASSWORD`: PostgreSQL password (default: "postgres")
-- `DB_DATABASE`: PostgreSQL database name (default: "facial_api")
-
-### Prometheus Settings
-- `PROMETHEUS_ENABLED`: Enable/disable Prometheus metrics (default: true)
-- `PROMETHEUS_PORT`: Port for Prometheus metrics server (default: 9090)
-
-## Running Without Database
-
-To run the application without database functionality:
-
-```bash
-# Set the environment variable
-export DB_USE_DATABASE=false if you don't want to work with database for now
-
-# Run the application
-fastapi dev app/main.py
-```
-
-Or Run the application with Docker Compose:
-
-```bash
-docker-compose up -d
-```
-
-## Architecture
-
-The application follows a modular design with the following components:
-
-- **API Layer**: FastAPI routes and request handling
-- **Job Queue**: Asynchronous job processing
-- **Image Processing**: Core image analysis and SVG generation
-- **Caching**: PostgreSQL-based result caching (optional)
-- **Monitoring**: Prometheus metrics and Rich logging
-
-This architecture allows for easy extension and scaling of the application.

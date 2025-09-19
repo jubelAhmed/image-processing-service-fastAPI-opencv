@@ -1,0 +1,38 @@
+# Core FastAPI and web framework
+fastapi[standard]==0.115.13
+uvicorn==0.34.3
+starlette==0.46.2
+
+# Database
+SQLAlchemy==2.0.43
+asyncpg==0.30.0
+
+# Authentication and security
+python-jose==3.3.0
+passlib==1.7.4
+bcrypt==4.1.2
+
+# Rate limiting
+slowapi==0.1.9
+redis==5.0.1
+
+# Data validation and settings
+pydantic==2.11.7
+pydantic-settings==2.10.0
+email_validator==2.2.0
+
+# Image processing
+opencv-python==4.11.0.86
+numpy==2.3.1
+svgwrite==1.4.3
+
+# Monitoring
+prometheus_client==0.22.1
+
+# Logging and console
+rich==14.0.0
+
+# Utilities
+python-dotenv==1.1.0
+python-multipart==0.0.20
+PyYAML==6.0.2

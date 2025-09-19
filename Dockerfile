@@ -16,18 +16,18 @@ WORKDIR /code
 # Create static directory for any generated files
 RUN mkdir -p /code/static && chmod 777 /code/static
 
-COPY ./requirements.txt /code/requirements.txt
+COPY ./requirements /code/requirements
 
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /code/requirements/prod.txt
 
-COPY ./app /code/app
+COPY ./src /code/src
 
 # Create health check endpoint file
-RUN mkdir -p /code/app/static && \
-    echo '{"status": "healthy"}' > /code/app/static/health.json
+RUN mkdir -p /code/templates && \
+    echo '{"status": "healthy"}' > /code/templates/health.json
 
 # Expose ports
 EXPOSE 80
 EXPOSE 9090
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "80"]
